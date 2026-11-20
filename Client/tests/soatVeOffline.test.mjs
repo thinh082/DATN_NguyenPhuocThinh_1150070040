@@ -1,0 +1,32 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { generateKeyPairSync, sign } from 'node:crypto';
+import { generateSync } from 'otplib';
+import { xacThucNgoaiTuyen } from '../services/soatVeOffline.mjs';
+
+test('accepts valid signed ticket and rejects forged, expired and replayed tickets', () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const maVe = '11111111-1111-1111-1111-111111111111';
+  const now = Date.UTC(2026, 0, 1);
+  const signed = JSON.stringify({ v: 1, mv: maVe, lv: 'VeLuot', tx: 1, tu: '2025-12-31T00:00:00Z', den: '2026-01-02T00:00:00Z', mk: 'KEY1' });
+  const signature = sign('sha256', Buffer.from(signed), { key: privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64');
+  const secret = Buffer.from('12345678901234567890123456789012').toString('base64');
+  const otp = generateSync({ secret: new Uint8Array(Buffer.from(secret, 'base64')), algorithm: 'sha256', digits: 8, period: 30, epoch: now / 1000 });
+  const payload = `SMARTBUS:v1:${maVe}:${otp}:${signature}`;
+  const ticket = { maVe, duLieuDaKy: Buffer.from(signed).toString('base64'), khoaCongKhai: publicKey.export({ type: 'spki', format: 'der' }).toString('base64'), biMatTotp: secret, trangThai: 'HoatDong' };
+  const pack = { hetHanLuc: new Date(now + 60000).toISOString(), tuyenXeId: 1, ves: [ticket] };
+  assert.equal(xacThucNgoaiTuyen(payload, pack, [], now).maLyDo, 'HOP_LE');
+  const forged = { ...ticket, duLieuDaKy: Buffer.from(signed.replace('VeLuot', 'VeThang')).toString('base64') };
+  assert.equal(xacThucNgoaiTuyen(payload, { ...pack, ves: [forged] }, [], now).maLyDo, 'SAI_CHU_KY');
+  assert.equal(xacThucNgoaiTuyen(payload, { ...pack, ves: [] }, [], now).maLyDo, 'KHONG_CO_DU_LIEU');
+  assert.equal(xacThucNgoaiTuyen(payload.replace(otp, '00000000'), pack, [], now).hopLe, false);
+  assert.equal(xacThucNgoaiTuyen(payload, pack, [{ maVe, buocThoiGian: now / 30000 }], now).maLyDo, 'DA_SU_DUNG');
+  const upperId = 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA';
+  const lowerId = upperId.toLowerCase();
+  const upperSigned = JSON.stringify({ v: 1, mv: lowerId, lv: 'VeLuot', tx: 1, tu: '2025-12-31T00:00:00Z', den: '2026-01-02T00:00:00Z', mk: 'KEY1' });
+  const upperSig = sign('sha256', Buffer.from(upperSigned), { key: privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64');
+  const upperPack = { ...pack, ves: [{ ...ticket, maVe: lowerId, duLieuDaKy: Buffer.from(upperSigned).toString('base64') }] };
+  assert.equal(xacThucNgoaiTuyen(`SMARTBUS:v1:${upperId}:${otp}:${upperSig}`, upperPack, [{ maVe: lowerId, buocThoiGian: 0 }], now).maLyDo, 'DA_SU_DUNG');
+  assert.equal(xacThucNgoaiTuyen(payload, pack, [], now + 86400000).hopLe, false);
+  assert.equal(xacThucNgoaiTuyen(payload, { ...pack, tuyenXeId: 2 }, [], now).maLyDo, 'SAI_TUYEN');
+});
