@@ -17,7 +17,7 @@
 
 ## Báo cáo và việc còn mở
 
-- Trong gói chuyển máy, `../word/` tính từ thư mục repo chứa bản Word 23 trang, file draw.io sáu tab và tài liệu của khoa. Dùng `SmartBus - Khung bao cao DATN.docx` làm bản viết tiếp.
+- Trong repo, mở [báo cáo Word 23 trang](../word/SmartBus%20-%20Khung%20bao%20cao%20DATN.docx) để viết tiếp và [file draw.io sáu tab](../word/SmartBus%20-%20Sequence%20QR%20va%20soat%20ve.drawio) để chỉnh sửa các sơ đồ Sequence. Tài liệu của khoa và đề cương nằm trong thư mục `word/` bên ngoài repo của gói chuyển máy.
 - Chương 2 cần đưa hình sơ đồ vào Word và hoàn thiện Use Case, kiến trúc, Activity, ERD, Class. Sơ đồ Sequence đã có file riêng. Chương 3 cần ảnh giao diện và số liệu thiết bị thật.
 - Bản PDF đề cương có tên đề tài khác tên trên khung Word. Sinh viên cần xác nhận bản đã duyệt và thống nhất tên trước khi xuất báo cáo nộp.
 - Dashboard và CSV còn khác cách áp dụng bộ lọc. Mã TOTP hiện dùng bí mật ngẫu nhiên theo vé. Đối chiếu với đề cương nếu bản duyệt yêu cầu dẫn xuất khóa.
