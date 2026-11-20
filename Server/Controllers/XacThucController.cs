@@ -178,6 +178,10 @@ public class XacThucController : ControllerBase
         {
             return BadRequest(KetQuaPhanHoi.ThatBai(ex.Message, 400));
         }
+        catch (IOException)
+        {
+            return StatusCode(502, KetQuaPhanHoi.ThatBai("Không lưu được tệp minh chứng.", 502));
+        }
         catch (Exception ex)
         {
             return StatusCode(500, KetQuaPhanHoi.ThatBai("Loi he thong khi tai len tep: " + ex.Message, 500));
@@ -192,8 +196,8 @@ public class XacThucController : ControllerBase
         {
             var userId = int.Parse(User.FindFirst("id")!.Value);
             var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
-            var (duongDanVatLy, loaiFile, tenFileGoc) = await _xacThucService.layTepMinhChung(maTep, userId, role);
-            return PhysicalFile(duongDanVatLy, loaiFile, tenFileGoc, enableRangeProcessing: true);
+            var (noiDung, loaiFile, tenFileGoc) = await _xacThucService.layTepMinhChung(maTep, userId, role);
+            return File(noiDung, loaiFile, tenFileGoc, enableRangeProcessing: true);
         }
         catch (KeyNotFoundException ex)
         {
@@ -206,6 +210,10 @@ public class XacThucController : ControllerBase
         catch (UnauthorizedAccessException ex)
         {
             return StatusCode(403, KetQuaPhanHoi.ThatBai(ex.Message, 403));
+        }
+        catch (IOException)
+        {
+            return StatusCode(502, KetQuaPhanHoi.ThatBai("Không đọc được tệp minh chứng.", 502));
         }
         catch (Exception ex)
         {

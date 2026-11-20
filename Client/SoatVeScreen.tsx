@@ -12,10 +12,12 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAudioPlayer } from 'expo-audio';
+import { StatusBar } from 'expo-status-bar';
 import * as Crypto from 'expo-crypto';
 import type { SQLiteDatabase } from 'expo-sqlite';
-import Colors from './constants/colors';
-import apiClient from './services/api';
+import { Colors } from './constants/colors';
+import { headerInset, Icon } from './components/MobileUi';
+import { apiClient } from './services/api';
 import { docGoi, dongBoNhatKy, luuGoi, moKho, quetVaLuu, layThongKeDongBo, datLaiSuKienLoi } from './services/khoSoatVe';
 import type { GoiKiemTra } from './services/soatVeOffline.mjs';
 
@@ -34,6 +36,7 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
   const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState(false);
   const [syncStats, setSyncStats] = useState<{ choXuLy: number; biLoi: number; daDongBo: number } | null>(null);
+  const screenScroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const lock = useRef(false);
   const successSound = useAudioPlayer(require('./assets/scan-ok.wav'));
   const failureSound = useAudioPlayer(require('./assets/scan-error.wav'));
@@ -269,22 +272,49 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
     }
   }
 
+  const accepted = message.startsWith('Vé hợp lệ');
+  const rejected = message.startsWith('Từ chối:');
+
+  useEffect(() => {
+    if (!scanning && (accepted || rejected)) screenScroll.current?.scrollTo({ y: 0, animated: false });
+  }, [accepted, rejected, scanning]);
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.screenTitle}>Soát vé SmartBus</Text>
+    <ScrollView ref={screenScroll} style={styles.screen} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <StatusBar style="dark" />
+      <View style={styles.heading}>
+        <View style={styles.headingIcon}><Icon name="scan-outline" size={24} /></View>
+        <Text accessibilityRole="header" style={styles.screenTitle}>Soát vé SmartBus</Text>
+      </View>
+      <View style={[styles.connection, isOffline && styles.connectionOffline]}>
+        <Icon name={isOffline ? 'cloud-offline-outline' : 'wifi-outline'} color={isOffline ? Colors.warningText : Colors.successText} size={18} />
+        <Text style={[styles.connectionText, isOffline && { color: Colors.warningText }]}>
+          {isOffline ? 'Chế độ ngoại tuyến' : 'Đang trực tuyến'}
+        </Text>
+      </View>
 
-      {isOffline && (
-        <View style={styles.offlineBanner}>
-          <Text style={styles.offlineBannerText}>⚠️ Ngoại tuyến · trạng thái có thể chưa cập nhật</Text>
+      <View accessibilityLiveRegion="polite" style={[styles.statusBar, accepted && styles.accepted, rejected && styles.rejected]}>
+        <Icon name={accepted ? 'checkmark-circle' : rejected ? 'close-circle' : 'information-circle-outline'} size={accepted || rejected ? 36 : 22} color={accepted ? Colors.successText : rejected ? Colors.dangerText : Colors.primaryDark} />
+        <View style={styles.statusContent}>
+          <Text style={[styles.statusText, accepted && { color: Colors.successText }, rejected && { color: Colors.dangerText }]}>{message}</Text>
         </View>
-      )}
+      </View>
 
-      {syncStats && (syncStats.choXuLy > 0 || syncStats.biLoi > 0) && (
+      {syncStats && (
         <View style={styles.syncStatsBox}>
+          <View style={styles.heading}>
+            <Icon name="cloud-upload-outline" />
+            <Text style={styles.cardTitle}>Hàng đợi đồng bộ</Text>
+          </View>
           <Text style={styles.syncStatsText}>
-            📦 Hàng đợi offline: {syncStats.choXuLy} chưa gửi
-            {syncStats.biLoi > 0 ? ` • ${syncStats.biLoi} bị lỗi máy chủ` : ''}
+            {syncStats.choXuLy} chờ gửi · {syncStats.biLoi} lỗi
           </Text>
+          {!!pack && (
+            <TouchableOpacity accessibilityRole="button" style={[styles.btnPrimary, (!db || busy || scanning) && styles.disabled]} disabled={!db || busy || scanning} onPress={sync}>
+              <Icon name="sync-outline" size={18} color={Colors.white} />
+              <Text style={styles.btnPrimaryText}>Đồng bộ ngay</Text>
+            </TouchableOpacity>
+          )}
           {syncStats.biLoi > 0 && (
             <TouchableOpacity
               style={styles.retryFailedBtn}
@@ -301,15 +331,11 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
         </View>
       )}
 
-      <View style={styles.statusBar}>
-        <Text style={styles.statusText}>{message}</Text>
-      </View>
-      <Text style={styles.infoHint}>Nhật ký quét được lưu an toàn trên máy cho đến khi đồng bộ.</Text>
       {busy && <ActivityIndicator color={Colors.primary} />}
 
       {!pack && (
         <View style={styles.card}>
-          <TouchableOpacity style={styles.btnSecondary} onPress={loadOptions} disabled={busy || !db}>
+          <TouchableOpacity style={[styles.btnSecondary, (busy || !db) && styles.disabled]} onPress={loadOptions} disabled={busy || !db}>
             <Text style={styles.btnSecondaryText}>Tải danh sách thiết bị và chuyến</Text>
           </TouchableOpacity>
 
@@ -319,12 +345,13 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
               {devices.map(d => (
                 <TouchableOpacity
                   key={d.id}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: device === d.id }}
                   style={[styles.itemBtn, device === d.id && styles.itemBtnActive]}
                   onPress={() => setDevice(d.id)}
                 >
-                  <Text style={[styles.itemBtnText, device === d.id && styles.itemBtnTextActive]}>
-                    {device === d.id ? '✓ ' : ''}{d.tenThietBi}
-                  </Text>
+                  <Icon name={device === d.id ? 'radio-button-on' : 'radio-button-off'} size={18} />
+                  <Text style={[styles.itemBtnText, device === d.id && styles.itemBtnTextActive]}>{d.tenThietBi}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -336,19 +363,20 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
               {trips.map(t => (
                 <TouchableOpacity
                   key={t.id}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: trip === t.id }}
                   style={[styles.itemBtn, trip === t.id && styles.itemBtnActive]}
                   onPress={() => setTrip(t.id)}
                 >
-                  <Text style={[styles.itemBtnText, trip === t.id && styles.itemBtnTextActive]}>
-                    {trip === t.id ? '✓ ' : ''}{t.tenTuyen} — {t.bienSo}
-                  </Text>
+                  <Icon name={trip === t.id ? 'radio-button-on' : 'radio-button-off'} size={18} />
+                  <Text style={[styles.itemBtnText, trip === t.id && styles.itemBtnTextActive]}>{t.tenTuyen} — {t.bienSo}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           )}
 
           <TouchableOpacity
-            style={[styles.btnPrimary, { marginTop: 16 }]}
+            style={[styles.btnPrimary, { marginTop: 16 }, (busy || !device || !trip || !db) && styles.disabled]}
             onPress={prepare}
             disabled={busy || !device || !trip || !db}
           >
@@ -372,49 +400,57 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
             )}
 
             <TouchableOpacity
-              style={[styles.btnPrimary, { backgroundColor: '#0284C7' }]}
+              accessibilityRole="button"
+              style={[styles.btnPrimary, styles.scanButton, (!db || !permission?.granted || scanning) && styles.disabled]}
               disabled={!pack || !db || !permission?.granted || scanning}
               onPress={() => setScanning(true)}
             >
-              <Text style={styles.btnPrimaryText}>📷 Bật Camera Quét Mã QR</Text>
+              <Icon name="camera-outline" color={Colors.white} size={22} />
+              <Text style={styles.btnPrimaryText}>Mở camera quét vé</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.btnPrimary, { backgroundColor: '#F59E0B' }]}
+              accessibilityRole="button"
+              style={styles.btnSecondary}
               disabled={!pack || busy || scanning}
               onPress={() => { setLookupModal(true); setLookupResult(null); }}
             >
-              <Text style={styles.btnPrimaryText}>🔍 Tra cứu khẩn cấp (CCCD / SĐT)</Text>
+              <Icon name="search-outline" size={18} />
+              <Text style={styles.btnSecondaryText}>Tra cứu khẩn cấp (CCCD/SĐT)</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
+            {!syncStats && <TouchableOpacity
+              accessibilityRole="button"
               style={[styles.btnSecondary]}
               disabled={!db || busy || scanning}
               onPress={sync}
             >
-              <Text style={styles.btnSecondaryText}>🔄 Đồng bộ lượt quét lên máy chủ</Text>
-            </TouchableOpacity>
+              <Icon name="sync-outline" size={18} />
+              <Text style={styles.btnSecondaryText}>Đồng bộ lượt quét</Text>
+            </TouchableOpacity>}
 
             <TouchableOpacity
               style={[styles.btnDanger]}
               disabled={!pack || busy || scanning}
               onPress={endSession}
             >
-              <Text style={styles.btnDangerText}>🛑 Kết thúc phiên soát vé</Text>
+              <Icon name="stop-circle-outline" color={Colors.dangerText} size={18} />
+              <Text style={styles.btnDangerText}>Kết thúc phiên</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
       {scanning && (
-        <View style={styles.cameraBox}>
+        <View style={styles.cameraBox} onLayout={() => screenScroll.current?.scrollToEnd({ animated: false })}>
           <CameraView
             style={StyleSheet.absoluteFill}
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
             onBarcodeScanned={({ data }) => void onScan(data)}
           />
           <TouchableOpacity style={styles.closeCamBtn} onPress={() => setScanning(false)}>
-            <Text style={styles.closeCamText}>✕ Tắt Camera</Text>
+            <Icon name="close" color={Colors.white} size={16} />
+            <Text style={styles.closeCamText}>Tắt camera</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -429,8 +465,8 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>TRA CỨU VÉ KHẨN CẤP</Text>
-              <TouchableOpacity onPress={() => setLookupModal(false)}>
-                <Text style={styles.closeModalText}>✕</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Đóng tra cứu" style={styles.iconButton} onPress={() => setLookupModal(false)}>
+                <Icon name="close" color={Colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <Text style={styles.modalSubtitle}>
@@ -438,13 +474,22 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
             </Text>
 
             <View style={styles.searchRow}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Nhập số CCCD hoặc SĐT..."
-                value={lookupKeyword}
-                onChangeText={setLookupKeyword}
-                keyboardType="numeric"
-              />
+              <View style={styles.lookupField}>
+                <TextInput
+                  accessibilityLabel="Số CCCD hoặc số điện thoại"
+                  style={styles.lookupInput}
+                  placeholder="CCCD hoặc SĐT"
+                  placeholderTextColor={Colors.textMuted}
+                  value={lookupKeyword}
+                  onChangeText={setLookupKeyword}
+                  keyboardType="numeric"
+                />
+                {!!lookupKeyword && (
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Xóa nội dung tìm kiếm" style={styles.iconButton} onPress={() => setLookupKeyword('')}>
+                    <Icon name="close-circle-outline" color={Colors.textSecondary} size={19} />
+                  </TouchableOpacity>
+                )}
+              </View>
               <TouchableOpacity style={styles.searchBtn} onPress={xuLyTraCuu} disabled={lookupLoading}>
                 <Text style={styles.searchBtnText}>Tìm</Text>
               </TouchableOpacity>
@@ -457,7 +502,10 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
                 {lookupResult.timThay ? (
                   <View>
                     <View style={styles.passengerBox}>
-                      <Text style={styles.passengerName}>👤 {lookupResult.thongTinKhach?.hoTen}</Text>
+                      <View style={styles.heading}>
+                        <Icon name="person-outline" size={18} />
+                        <Text style={styles.passengerName}>{lookupResult.thongTinKhach?.hoTen}</Text>
+                      </View>
                       <Text style={styles.passengerMeta}>
                         CCCD: {lookupResult.thongTinKhach?.cccd} • SĐT: {lookupResult.thongTinKhach?.soDienThoai}
                       </Text>
@@ -473,7 +521,7 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
                             <Text style={styles.ticketType}>{v.tenLoaiVe} — {v.tenNhomDoiTuong}</Text>
                             <Text style={styles.ticketRoute}>Tuyến: {v.tenTuyen}</Text>
                             <Text style={styles.ticketExpiry}>Hạn dùng: {new Date(v.hetHanLuc).toLocaleDateString('vi-VN')}</Text>
-                            {v.lyDo && <Text style={styles.ticketReason}>⚠️ {v.lyDo}</Text>}
+                            {v.lyDo && <Text style={styles.ticketReason}>{v.lyDo}</Text>}
                           </View>
 
                           <View style={styles.ticketActions}>
@@ -483,7 +531,8 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
                                 onPress={() => xuLyXacNhan(v.maVe)}
                                 disabled={lookupLoading}
                               >
-                                <Text style={styles.confirmBtnText}>✓ Xác nhận</Text>
+                                <Icon name="checkmark" color={Colors.white} size={16} />
+                                <Text style={styles.confirmBtnText}>Xác nhận lên xe</Text>
                               </TouchableOpacity>
                             )}
 
@@ -493,7 +542,8 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
                                 onPress={() => { setTicketToLock(v.maVe); setLockReason(''); setLockModal(true); }}
                                 disabled={lookupLoading}
                               >
-                                <Text style={styles.lockBtnText}>🔒 Tạm khóa</Text>
+                                <Icon name="lock-closed-outline" color={Colors.dangerText} size={16} />
+                                <Text style={styles.lockBtnText}>Tạm khóa vé</Text>
                               </TouchableOpacity>
                             )}
                           </View>
@@ -528,7 +578,9 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
             <Text style={[styles.label, { marginTop: 12 }]}>Lý do khóa vé (*):</Text>
             <TextInput
               style={[styles.searchInput, { marginTop: 6, minHeight: 60, textAlignVertical: 'top' }]}
+              accessibilityLabel="Lý do khóa vé"
               placeholder="Ví dụ: Nghi ngờ mượn vé tháng của người khác..."
+              placeholderTextColor={Colors.textMuted}
               value={lockReason}
               onChangeText={setLockReason}
               multiline
@@ -559,361 +611,86 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
   );
 }
 
+const centeredAction = {
+  minHeight: 48,
+  flexDirection: 'row',
+  gap: 8,
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderRadius: 12,
+} as const;
+
 const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-    paddingTop: 50,
-    gap: 12,
-    backgroundColor: '#F8FAFC',
-  },
-  screenTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: Colors.textPrimary,
-  },
-  statusBar: {
-    backgroundColor: '#E0F2FE',
-    padding: 10,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
-  },
-  statusText: {
-    fontSize: 13,
-    color: '#0369A1',
-    fontWeight: '600',
-  },
-  infoHint: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.textPrimary,
-  },
-  cardSubtitle: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 4,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  actionGrid: {
-    marginTop: 14,
-    gap: 10,
-  },
-  itemBtn: {
-    padding: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginTop: 6,
-  },
-  itemBtnActive: {
-    borderColor: Colors.primary,
-    backgroundColor: '#EFF6FF',
-  },
-  itemBtnText: {
-    fontSize: 13,
-    color: Colors.textPrimary,
-  },
-  itemBtnTextActive: {
-    color: Colors.primary,
-    fontWeight: 'bold',
-  },
-  btnPrimary: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  btnPrimaryText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  btnSecondary: {
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-  },
-  btnSecondaryText: {
-    color: '#334155',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  btnDanger: {
-    backgroundColor: '#FEE2E2',
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-  },
-  btnDangerText: {
-    color: '#DC2626',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  cameraBox: {
-    height: 300,
-    borderRadius: 14,
-    overflow: 'hidden',
-    position: 'relative',
-    marginTop: 10,
-  },
-  closeCamBtn: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-  },
-  closeCamText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  btnLogout: {
-    marginTop: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  btnLogoutText: {
-    color: '#64748B',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  // Modal Tra Cuu
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  modalContent: {
-    backgroundColor: '#FFF',
-    borderRadius: 18,
-    padding: 18,
-    width: '100%',
-    maxHeight: '90%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.primary,
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 4,
-    lineHeight: 16,
-  },
-  closeModalText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#94A3B8',
-    padding: 4,
-  },
-  searchRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 14,
-  },
-  searchInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 14,
-  },
-  searchBtn: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 18,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  searchBtnText: {
-    color: '#FFF',
-    fontWeight: 'bold',
-  },
-  passengerBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  passengerName: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: Colors.textPrimary,
-  },
-  passengerMeta: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 4,
-  },
-  ticketItem: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  ticketItemDisabled: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#CBD5E1',
-    opacity: 0.8,
-  },
-  ticketType: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: Colors.textPrimary,
-  },
-  ticketRoute: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  ticketExpiry: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  ticketReason: {
-    fontSize: 11,
-    color: '#DC2626',
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  ticketActions: {
-    gap: 6,
-    marginLeft: 8,
-  },
-  confirmBtn: {
-    backgroundColor: '#10B981',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  confirmBtnText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  lockBtn: {
-    backgroundColor: '#FEE2E2',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  lockBtnText: {
-    color: '#DC2626',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  emptyNoticeBox: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  emptyNoticeText: {
-    fontSize: 13,
-    color: '#64748B',
-  },
-  emptyNotice: {
-    fontSize: 12,
-    color: '#64748B',
-    fontStyle: 'italic',
-  },
-  closeBtn: {
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 14,
-  },
-  closeBtnText: {
-    color: '#475569',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  offlineBanner: {
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: 10,
-    alignItems: 'center',
-  },
-  offlineBannerText: {
-    color: '#92400E',
-    fontWeight: 'bold',
-    fontSize: 13,
-  },
-  syncStatsBox: {
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#93C5FD',
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: 10,
-  },
-  syncStatsText: {
-    color: '#1E40AF',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  retryFailedBtn: {
-    marginTop: 6,
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-  },
-  retryFailedBtnText: {
-    color: '#DC2626',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
+  screen: { flex: 1, backgroundColor: Colors.background },
+  container: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: 16, paddingTop: headerInset + 16, paddingBottom: 48, gap: 12 },
+  heading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headingIcon: { height: 44, width: 44, backgroundColor: Colors.primaryLight, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  screenTitle: { flex: 1, fontSize: 23, fontWeight: '800', color: Colors.textPrimary },
+  connection: { alignSelf: 'flex-start', flexDirection: 'row', gap: 8, alignItems: 'center', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, backgroundColor: Colors.successSurface },
+  connectionOffline: { backgroundColor: Colors.warningSurface },
+  connectionText: { color: Colors.successText, fontSize: 13, fontWeight: '700' },
+  statusBar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.primaryLight, padding: 14, borderRadius: 16, borderLeftWidth: 4, borderLeftColor: Colors.primary },
+  accepted: { backgroundColor: Colors.successSurface, borderLeftColor: Colors.success },
+  rejected: { backgroundColor: Colors.dangerSurface, borderLeftColor: Colors.danger },
+  statusContent: { flex: 1 },
+  statusText: { fontSize: 15, color: Colors.primaryDark, fontWeight: '700' },
+  card: { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border, elevation: 1 },
+  cardTitle: { flexShrink: 1, fontSize: 17, fontWeight: '800', color: Colors.textPrimary },
+  cardSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 4 },
+  label: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
+  actionGrid: { marginTop: 12, gap: 8 },
+  itemBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, marginTop: 8 },
+  itemBtnActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
+  itemBtnText: { flex: 1, fontSize: 14, color: Colors.textPrimary },
+  itemBtnTextActive: { color: Colors.primaryDark, fontWeight: '700' },
+  btnPrimary: { ...centeredAction, backgroundColor: Colors.primary },
+  btnPrimaryText: { flexShrink: 1, textAlign: 'center', color: Colors.white, fontWeight: '700', fontSize: 14 },
+  scanButton: { minHeight: 54 },
+  btnSecondary: { ...centeredAction, backgroundColor: Colors.primaryLight, borderWidth: 1, borderColor: Colors.border },
+  btnSecondaryText: { flexShrink: 1, textAlign: 'center', color: Colors.primaryDark, fontWeight: '700', fontSize: 14 },
+  btnDanger: { ...centeredAction, backgroundColor: Colors.dangerSurface, borderWidth: 1, borderColor: Colors.danger },
+  btnDangerText: { flexShrink: 1, textAlign: 'center', color: Colors.dangerText, fontWeight: '700', fontSize: 14 },
+  disabled: { opacity: 0.52 },
+  cameraBox: { height: 300, borderRadius: 16, overflow: 'hidden', marginTop: 8 },
+  closeCamBtn: { ...centeredAction, position: 'absolute', top: 12, right: 12, backgroundColor: Colors.scrim, borderRadius: 999 },
+  closeCamText: { color: Colors.white, fontSize: 13, fontWeight: '700' },
+  btnLogout: { ...centeredAction, alignSelf: 'center' },
+  btnLogoutText: { color: Colors.textSecondary, fontSize: 14, fontWeight: '700' },
+  modalOverlay: { flex: 1, backgroundColor: Colors.scrim, justifyContent: 'center', alignItems: 'center', padding: 16 },
+  modalContent: { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, width: '100%', maxWidth: 560, maxHeight: '90%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  modalTitle: { flexShrink: 1, fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
+  modalSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 4, lineHeight: 19 },
+  iconButton: { height: 48, width: 48, justifyContent: 'center', alignItems: 'center', borderRadius: 12 },
+  searchRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  lookupField: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: 12 },
+  lookupInput: { flex: 1, minHeight: 48, minWidth: 0, paddingHorizontal: 10, color: Colors.textPrimary, fontSize: 15 },
+  searchInput: { minHeight: 48, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: 12, padding: 10, color: Colors.textPrimary, fontSize: 15 },
+  searchBtn: { ...centeredAction, backgroundColor: Colors.primary },
+  searchBtnText: { color: Colors.white, fontWeight: '700' },
+  passengerBox: { backgroundColor: Colors.primaryLight, borderRadius: 12, padding: 12 },
+  passengerName: { flexShrink: 1, fontSize: 16, fontWeight: '800', color: Colors.textPrimary },
+  passengerMeta: { fontSize: 13, color: Colors.textSecondary, marginTop: 4 },
+  ticketItem: { backgroundColor: Colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Colors.border, marginBottom: 8, gap: 8 },
+  ticketItemDisabled: { backgroundColor: Colors.background },
+  ticketType: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
+  ticketRoute: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  ticketExpiry: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  ticketReason: { fontSize: 12, color: Colors.dangerText, marginTop: 4, fontWeight: '600' },
+  ticketActions: { gap: 8 },
+  confirmBtn: { ...centeredAction, backgroundColor: Colors.primary },
+  confirmBtnText: { flexShrink: 1, color: Colors.white, fontSize: 13, fontWeight: '700' },
+  lockBtn: { ...centeredAction, backgroundColor: Colors.dangerSurface, borderWidth: 1, borderColor: Colors.danger },
+  lockBtnText: { flexShrink: 1, color: Colors.dangerText, fontSize: 13, fontWeight: '700' },
+  emptyNoticeBox: { padding: 16, alignItems: 'center' },
+  emptyNoticeText: { fontSize: 14, color: Colors.textMuted },
+  emptyNotice: { fontSize: 13, color: Colors.textMuted },
+  closeBtn: { ...centeredAction, backgroundColor: Colors.grayLight, marginTop: 12 },
+  closeBtnText: { color: Colors.textSecondary, fontWeight: '700', fontSize: 14 },
+  syncStatsBox: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 16, padding: 14, gap: 8 },
+  syncStatsText: { color: Colors.textSecondary, fontSize: 14, fontWeight: '600' },
+  retryFailedBtn: { ...centeredAction, alignSelf: 'flex-start', backgroundColor: Colors.dangerSurface, borderWidth: 1, borderColor: Colors.danger },
+  retryFailedBtnText: { flexShrink: 1, color: Colors.dangerText, fontSize: 13, fontWeight: '700' },
 });

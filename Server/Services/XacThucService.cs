@@ -23,19 +23,22 @@ public interface IXacThucService
     Task<dynamic> layHoSoCuaToi(int userId);
     Task<dynamic> layNhomUuTien();
     Task<TepMinhChungDto> taiLenMinhChung(int nguoiDungId, Microsoft.AspNetCore.Http.IFormFile file);
-    Task<(string duongDanVatLy, string loaiFile, string tenFileGoc)> layTepMinhChung(Guid maTep, int nguoiDungId, string vaiTro);
+    Task<(Stream noiDung, string loaiFile, string tenFileGoc)> layTepMinhChung(Guid maTep, int nguoiDungId, string vaiTro);
 }
 
 public class XacThucService : IXacThucService
 {
+    private const string CloudinaryPrefix = "cloudinary:";
     private readonly SmartBusDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly CloudinaryMinhChung? _cloudinary;
     private readonly PasswordHasher<NguoiDung> _hasher = new();
 
-    public XacThucService(SmartBusDbContext context, IConfiguration configuration)
+    public XacThucService(SmartBusDbContext context, IConfiguration configuration, CloudinaryMinhChung? cloudinary = null)
     {
         _context = context;
         _configuration = configuration;
+        _cloudinary = cloudinary;
     }
 
     public async Task<dynamic> dangNhap(DangNhapDto thongTin)
@@ -250,12 +253,18 @@ public class XacThucService : IXacThucService
 
         var maTep = Guid.NewGuid();
         var tenFileLuu = $"{maTep:N}{ext}";
-        var dir = LayThuMucLuuTru();
-        Directory.CreateDirectory(dir);
+        var cloudinary = _cloudinary is { Enabled: true } ? _cloudinary : null;
+        var publicId = $"smartbus/minh-chung/{tenFileLuu}";
 
-        var fullPath = Path.Combine(dir, tenFileLuu);
-        using (var fileStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None))
+        if (cloudinary != null)
         {
+            tenFileLuu = CloudinaryPrefix + await cloudinary.UploadAsync(file, publicId, mimeType);
+        }
+        else
+        {
+            var dir = LayThuMucLuuTru();
+            Directory.CreateDirectory(dir);
+            await using var fileStream = new FileStream(Path.Combine(dir, tenFileLuu), FileMode.CreateNew);
             await file.CopyToAsync(fileStream);
         }
 
@@ -272,7 +281,15 @@ public class XacThucService : IXacThucService
         };
 
         await _context.TepMinhChungs.AddAsync(tep);
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException) when (cloudinary != null)
+        {
+            await cloudinary.TryDeleteAsync(publicId);
+            throw;
+        }
 
         return new TepMinhChungDto
         {
@@ -284,7 +301,7 @@ public class XacThucService : IXacThucService
         };
     }
 
-    public async Task<(string duongDanVatLy, string loaiFile, string tenFileGoc)> layTepMinhChung(Guid maTep, int nguoiDungId, string vaiTro)
+    public async Task<(Stream noiDung, string loaiFile, string tenFileGoc)> layTepMinhChung(Guid maTep, int nguoiDungId, string vaiTro)
     {
         var tep = await _context.TepMinhChungs.FirstOrDefaultAsync(x => x.maTep == maTep);
         if (tep == null)
@@ -292,6 +309,14 @@ public class XacThucService : IXacThucService
 
         if (vaiTro != "QuanTriVien" && tep.nguoiDungId != nguoiDungId)
             throw new UnauthorizedAccessException("Ban khong co quyen truy cap tep minh chung nay.");
+
+        if (tep.tenFileLuu.StartsWith(CloudinaryPrefix, StringComparison.Ordinal))
+        {
+            if (_cloudinary == null)
+                throw new IOException("Chưa cấu hình dịch vụ lưu tệp minh chứng.");
+            var noiDung = await _cloudinary.DownloadAsync(tep.tenFileLuu[CloudinaryPrefix.Length..]);
+            return (noiDung, tep.loaiFile, tep.tenFileGoc);
+        }
 
         var dir = LayThuMucLuuTru();
         var fullPath = Path.GetFullPath(Path.Combine(dir, tep.tenFileLuu));
@@ -303,7 +328,7 @@ public class XacThucService : IXacThucService
         if (!File.Exists(fullPath))
             throw new FileNotFoundException("Tep tin khong ton tai tren he thong.");
 
-        return (fullPath, tep.loaiFile, tep.tenFileGoc);
+        return (File.OpenRead(fullPath), tep.loaiFile, tep.tenFileGoc);
     }
 
     public async Task<dynamic> nopHoSoUuTien(HoSoUuTienDto hoSo)

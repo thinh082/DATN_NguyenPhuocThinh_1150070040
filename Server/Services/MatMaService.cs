@@ -8,6 +8,7 @@ public interface IMatMaService
     (byte[] duLieuDaKy, byte[] chuKy) KySoDuLieu(string thongTinVe, ECDsa ecdsaPrivate);
     bool XacThucChuKy(byte[] duLieu, byte[] chuKy, string publicKeyPem);
     byte[] SinhBiMatTotp();
+    byte[] PhaiSinhBiMatTotp(Guid maVe, byte[]? salt = null, byte[]? khoaGoc = null);
     string TinhMaTotp(byte[] biMat, DateTime thoiDiem, int chuKyGiay = 30, int soChuSo = 8);
     bool XacThucMaTotp(byte[] biMat, string maTotp, DateTime thoiDiem, int chuKyGiay = 30, int soChuSo = 8, int dungSai = 1);
     byte[] MaHoaAes(byte[] duLieuGoc, byte[]? khoa = null);
@@ -56,6 +57,26 @@ public class MatMaService : IMatMaService
         var biMat = new byte[32];
         RandomNumberGenerator.Fill(biMat);
         return biMat;
+    }
+
+    public byte[] PhaiSinhBiMatTotp(Guid maVe, byte[]? salt = null, byte[]? khoaGoc = null)
+    {
+        var ikm = khoaGoc;
+        if (ikm is null)
+        {
+            var configuredKey = _configuration?["Security:TotpMasterKey"];
+            if (string.IsNullOrWhiteSpace(configuredKey))
+                configuredKey = _configuration?["Security:TotpEncryptionKey"];
+            if (string.IsNullOrWhiteSpace(configuredKey))
+                throw new InvalidOperationException("Chua cau hinh Security:TotpMasterKey hoac Security:TotpEncryptionKey (Base64, 32 byte).");
+            ikm = Convert.FromBase64String(configuredKey);
+        }
+        if (ikm.Length != 32)
+            throw new CryptographicException("Khoa goc phai sinh bi mat TOTP phai co 32 byte.");
+
+        var saltBytes = salt ?? RandomNumberGenerator.GetBytes(16);
+        var info = Encoding.UTF8.GetBytes($"smartbus:totp:v1:{maVe:D}");
+        return HKDF.DeriveKey(HashAlgorithmName.SHA256, ikm, 32, saltBytes, info);
     }
 
     public long TinhBuocThoiGian(DateTime thoiDiem, int chuKyGiay = 30)

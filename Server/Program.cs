@@ -64,6 +64,11 @@ if (!string.IsNullOrWhiteSpace(redisConnection))
 
 builder.Services.AddSingleton<ICacheService, CacheService>();
 builder.Services.AddScoped<INguoiDungService, NguoiDungService>();
+builder.Services.AddHttpClient<CloudinaryMinhChung>(http =>
+{
+    http.Timeout = TimeSpan.FromSeconds(60);
+    http.MaxResponseContentBufferSize = 5 * 1024 * 1024;
+});
 builder.Services.AddScoped<IXacThucService, XacThucService>();
 builder.Services.AddScoped<IVanHanhService, VanHanhService>();
 builder.Services.AddSingleton<IMatMaService, MatMaService>();

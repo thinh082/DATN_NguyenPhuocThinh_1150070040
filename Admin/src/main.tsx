@@ -731,7 +731,7 @@ function NewPattern({ close, done }: { close: () => void; done: () => void }) {
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontWeight: 'bold', fontSize: 12, color: '#0F766E' }}>#{idx + 1}</span>
+                      <span style={{ fontWeight: 'bold', fontSize: 12, color: 'var(--primary)' }}>#{idx + 1}</span>
                       <span style={{ fontSize: 13, color: '#1E293B' }}>
                         [{s.maTram}] <strong>{s.tenTram}</strong>
                       </span>
@@ -828,7 +828,7 @@ function ViewPatternModal({ patternId, close }: { patternId: number; close: () =
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontWeight: 'bold', color: '#0F766E' }}>#{s.thuTu}</span>
+                    <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>#{s.thuTu}</span>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: '600' }}>{s.tenTram}</div>
                       <div style={{ fontSize: 11, color: '#94A3B8' }}>{s.diaChi || `Mã: ${s.maTram}`}</div>
@@ -1050,19 +1050,20 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
           </h1>
           <p>Theo dõi hoạt động, phân bổ lượt đi và xuất dữ liệu đối soát.</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div className="dashboard-controls">
           {/* Bộ lọc khoảng ngày */}
-          <div style={{ display: 'flex', background: '#FFFFFF', borderRadius: 8, border: '1px solid #E2E8F0', padding: 2 }}>
+          <div className="dashboard-range">
             <button
               style={{
                 border: 0,
-                background: range === 'today' ? '#0F766E' : 'none',
+                background: range === 'today' ? 'var(--primary)' : 'none',
                 color: range === 'today' ? '#FFF' : '#475569',
                 padding: '6px 12px',
                 borderRadius: 6,
                 fontWeight: 'bold',
                 fontSize: 11,
               }}
+              aria-pressed={range === 'today'}
               onClick={() => setRange('today')}
             >
               Hôm nay
@@ -1070,13 +1071,14 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
             <button
               style={{
                 border: 0,
-                background: range === '7days' ? '#0F766E' : 'none',
+                background: range === '7days' ? 'var(--primary)' : 'none',
                 color: range === '7days' ? '#FFF' : '#475569',
                 padding: '6px 12px',
                 borderRadius: 6,
                 fontWeight: 'bold',
                 fontSize: 11,
               }}
+              aria-pressed={range === '7days'}
               onClick={() => setRange('7days')}
             >
               7 ngày
@@ -1084,13 +1086,14 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
             <button
               style={{
                 border: 0,
-                background: range === '30days' ? '#0F766E' : 'none',
+                background: range === '30days' ? 'var(--primary)' : 'none',
                 color: range === '30days' ? '#FFF' : '#475569',
                 padding: '6px 12px',
                 borderRadius: 6,
                 fontWeight: 'bold',
                 fontSize: 11,
               }}
+              aria-pressed={range === '30days'}
               onClick={() => setRange('30days')}
             >
               30 ngày
@@ -1099,7 +1102,7 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
 
           {/* Bộ lọc tuyến */}
           <select
-            style={{ height: 35, borderRadius: 8, borderColor: '#CBD5E1', fontSize: 12, padding: '0 8px' }}
+            aria-label="Lọc theo tuyến"
             value={tuyenId}
             onChange={(e) => setTuyenId(e.target.value)}
           >
@@ -1241,7 +1244,7 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
                   <strong>{a.maCanhBao}</strong>
                   <span>{a.noiDung}</span>
                 </div>
-                <span className="badge">{format(a.trangThai)}</span>
+                <span className={`badge ${a.trangThai === 'Moi' ? 'danger' : ''}`}>{format(a.trangThai)}</span>
                 <small>{format(a.ngayTao, 'ngayTao')}</small>
               </div>
             ))}
@@ -1437,9 +1440,11 @@ function DataPage({ page }: { page: Exclude<Page, 'overview'> }) {
                       {key === 'trangThai' || key === 'ketQuaTaiThietBi' ? (
                         <span
                           className={`badge ${
-                            row[key] === false || ['TamKhoa', 'TuChoi', 'Huy', 'Moi'].includes(row[key])
-                              ? 'warning'
-                              : ''
+                            ['TamKhoa', 'TuChoi', 'ThuHoi', 'Huy'].includes(row[key])
+                              ? 'danger'
+                              : row[key] === false || ['Moi', 'ChoDuyet'].includes(row[key])
+                                ? 'warning'
+                                : ''
                           }`}
                         >
                           {format(row[key], key)}
@@ -1520,7 +1525,7 @@ function DataPage({ page }: { page: Exclude<Page, 'overview'> }) {
                             )}
                             {row.trangThai === 'TamKhoa' && (
                               <button
-                                style={{ color: '#10B981', fontWeight: 'bold' }}
+                                style={{ color: 'var(--success-text)', fontWeight: 'bold' }}
                                 onClick={() => {
                                   const reason = window.prompt('Lý do mở khóa vé:');
                                   if (reason)

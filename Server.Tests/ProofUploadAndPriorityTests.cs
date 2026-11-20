@@ -71,9 +71,12 @@ public class ProofUploadAndPriorityTests
             Assert.Contains(maTepA.ToString(), (string)uploadResult.duongDan);
 
             // Kiểm tra truy cập tệp bởi chính User A
-            var (pathA, mimeA, nameA) = await service.layTepMinhChung(maTepA, userAId, "HanhKhach");
-            Assert.True(File.Exists(pathA));
-            createdFilePaths.Add(pathA);
+            var (contentA, mimeA, nameA) = await service.layTepMinhChung(maTepA, userAId, "HanhKhach");
+            await using var localFile = Assert.IsType<FileStream>(contentA);
+            createdFilePaths.Add(localFile.Name);
+            using var downloaded = new MemoryStream();
+            await localFile.CopyToAsync(downloaded);
+            Assert.Equal(jpegBytes, downloaded.ToArray());
             Assert.Equal("image/jpeg", mimeA);
             Assert.Equal("the_sinh_vien.jpg", nameA);
 
@@ -82,8 +85,9 @@ public class ProofUploadAndPriorityTests
                 await service.layTepMinhChung(maTepA, userBId, "HanhKhach"));
 
             // Quản trị viên được phép truy cập tệp của User A
-            var (pathAdmin, mimeAdmin, _) = await service.layTepMinhChung(maTepA, 999999, "QuanTriVien");
-            Assert.Equal(pathA, pathAdmin);
+            var (contentAdmin, mimeAdmin, _) = await service.layTepMinhChung(maTepA, 999999, "QuanTriVien");
+            await using var adminFile = Assert.IsType<FileStream>(contentAdmin);
+            Assert.Equal(localFile.Name, adminFile.Name);
             Assert.Equal("image/jpeg", mimeAdmin);
 
             // 2. Kiểm tra nộp hồ sơ ưu tiên với tệp của chính mình vs tệp của người khác

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { BrandHeader, ErrorBanner, Icon, InputField } from './components/MobileUi';
 import { dangKy } from './services/xacThucService';
-import Colors from './constants/colors';
+import { Colors } from './constants/colors';
 
 export default function DangKyScreen({ onBack, onRegistered }: { onBack: () => void; onRegistered: (account: string) => void }) {
   const [name, setName] = useState('');
@@ -27,24 +29,43 @@ export default function DangKyScreen({ onBack, onRegistered }: { onBack: () => v
     finally { setBusy(false); }
   }
 
-  return <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-    <Text style={styles.title}>Đăng ký hành khách</Text>
-    <Text>Nhập họ tên và ít nhất một thông tin liên hệ.</Text>
-    {!!error && <Text style={styles.error}>{error}</Text>}
-    <Text>Họ và tên *</Text><TextInput style={styles.input} value={name} onChangeText={setName} autoCapitalize="words" />
-    <Text>Email</Text><TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-    <Text>Số điện thoại</Text><TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-    <Text>CCCD (không bắt buộc)</Text><TextInput style={styles.input} value={cccd} onChangeText={setCccd} keyboardType="number-pad" maxLength={12} />
-    <Text>Mật khẩu *</Text><TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry />
-    <Text>Xác nhận mật khẩu *</Text><TextInput style={styles.input} value={confirm} onChangeText={setConfirm} secureTextEntry />
-    <TouchableOpacity style={styles.button} onPress={submit} disabled={busy}>{busy ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Tạo tài khoản</Text>}</TouchableOpacity>
-    <TouchableOpacity onPress={onBack} disabled={busy}><Text style={styles.link}>← Quay lại đăng nhập</Text></TouchableOpacity>
-  </ScrollView>;
+  return (
+    <ScrollView style={styles.screen} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+      <StatusBar style="light" />
+      <BrandHeader />
+      <View style={styles.content}>
+        <TouchableOpacity accessibilityRole="button" style={styles.back} onPress={onBack} disabled={busy}>
+          <Icon name="arrow-back" size={16} />
+          <Text style={styles.link}>Quay lại đăng nhập</Text>
+        </TouchableOpacity>
+        <View style={styles.card}>
+          <Text accessibilityRole="header" style={styles.title}>Đăng ký hành khách</Text>
+          <Text style={styles.subtitle}>Nhập họ tên và ít nhất một thông tin liên hệ.</Text>
+          {!!error && <ErrorBanner message={error} />}
+          <InputField label="Họ và tên *" icon="person-outline" value={name} onChangeText={setName} autoCapitalize="words" />
+          <InputField label="Email" icon="mail-outline" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+          <InputField label="Số điện thoại" icon="call-outline" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+          <InputField label="CCCD (không bắt buộc)" icon="card-outline" value={cccd} onChangeText={setCccd} keyboardType="number-pad" maxLength={12} />
+          <InputField label="Mật khẩu *" icon="lock-closed-outline" value={password} onChangeText={setPassword} autoComplete="new-password" secureTextEntry />
+          <InputField label="Xác nhận mật khẩu *" icon="lock-closed-outline" value={confirm} onChangeText={setConfirm} autoComplete="new-password" secureTextEntry />
+          <TouchableOpacity accessibilityRole="button" style={[styles.button, busy && styles.disabled]} onPress={submit} disabled={busy}>
+            {busy ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.buttonText}>Tạo tài khoản</Text>}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </ScrollView>
+  );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 24, paddingTop: 60, gap: 10, backgroundColor: Colors.background, flexGrow: 1 },
-  title: { fontSize: 22, fontWeight: 'bold', color: Colors.primary }, input: { backgroundColor: 'white', borderWidth: 1, borderColor: Colors.border, borderRadius: 10, padding: 12 },
-  error: { color: Colors.danger }, button: { padding: 14, backgroundColor: Colors.primary, alignItems: 'center', borderRadius: 10 },
-  buttonText: { color: 'white', fontWeight: 'bold' }, link: { color: Colors.primary, textAlign: 'center', padding: 10 },
+  screen: { flex: 1, backgroundColor: Colors.background },
+  content: { width: '100%', maxWidth: 480, alignSelf: 'center', padding: 16, paddingBottom: 48, gap: 8 },
+  card: { gap: 12, padding: 16, borderWidth: 1, borderColor: Colors.border, borderRadius: 16, backgroundColor: Colors.surface, elevation: 1 },
+  title: { fontSize: 22, fontWeight: '800', color: Colors.textPrimary },
+  subtitle: { fontSize: 14, color: Colors.textSecondary },
+  button: { minHeight: 48, padding: 12, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  buttonText: { color: Colors.white, fontWeight: '700', fontSize: 16 },
+  disabled: { opacity: 0.55 },
+  back: { minHeight: 48, alignSelf: 'flex-start', flexDirection: 'row', gap: 8, alignItems: 'center', paddingHorizontal: 10 },
+  link: { color: Colors.primaryDark, fontWeight: '700' },
 });

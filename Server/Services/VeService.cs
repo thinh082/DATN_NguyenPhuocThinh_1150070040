@@ -500,7 +500,7 @@ public class VeService : IVeService
 
                 var (duLieuBytes, chuKyBytes) = _matMaService.KySoDuLieu(thongTinKy, ecdsaPrivate);
 
-                var biMatTotpRaw = _matMaService.SinhBiMatTotp();
+                var biMatTotpRaw = _matMaService.PhaiSinhBiMatTotp(maVe);
                 var biMatMaHoa = _matMaService.MaHoaAes(biMatTotpRaw);
 
                 var ve = new Ve

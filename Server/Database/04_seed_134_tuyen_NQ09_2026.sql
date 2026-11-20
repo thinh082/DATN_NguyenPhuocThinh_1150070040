@@ -1,0 +1,170 @@
+﻿/*
+  SmartBus - Nap danh muc 134 tuyen xe buyt TP.HCM
+  Nguon: Nghi quyet so 09/2026/NQ-HDND ngay 19/06/2026 cua HDND TP.HCM
+    - Phu luc 01: 109 tuyen xe buyt duoc ngan sach ho tro kinh phi hoat dong
+    - Phu luc 02: 25 tuyen xe buyt khong tro gia ap dung mien phi 100% gia ve (01/07/2026 - 31/12/2026)
+  Script an toan khi chay lai nhieu lan (idempotent): giu nguyen id cac tuyen da co (01, 150) va chi bo sung tuyen con thieu.
+*/
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+
+BEGIN TRANSACTION;
+
+DECLARE @TuyenNQ09 TABLE (
+    maTuyen varchar(20) NOT NULL PRIMARY KEY,
+    tenTuyen nvarchar(200) NOT NULL,
+    gioBatDau time(0) NOT NULL,
+    gioKetThuc time(0) NOT NULL,
+    gianCachPhut smallint NOT NULL
+);
+
+INSERT INTO @TuyenNQ09 (maTuyen, tenTuyen, gioBatDau, gioKetThuc, gianCachPhut) VALUES
+    ('01', N'Ga Ba Son - Bến xe buýt Chợ Lớn', '05:00:00', '21:00:00', 15),
+    ('03', N'Bến Thành - Thạnh Xuân', '05:00:00', '21:00:00', 15),
+    ('04', N'Bến Thành - Cộng Hòa - Bến xe An Sương', '05:00:00', '21:00:00', 15),
+    ('06', N'Bến xe buýt Chợ Lớn - Đại học Nông Lâm', '05:00:00', '21:00:00', 15),
+    ('07', N'Bến xe buýt Chợ Lớn - Gò Vấp', '05:00:00', '21:00:00', 15),
+    ('08', N'Bến xe buýt Quận 8 - Đại học Quốc gia', '05:00:00', '21:00:00', 15),
+    ('09', N'Bến xe buýt Chợ Lớn - Bình Chánh - Hưng Long', '05:00:00', '21:00:00', 15),
+    ('10', N'Đại học Quốc Gia - Bến xe Miền Tây', '05:00:00', '21:00:00', 15),
+    ('14', N'Bến xe Miền Đông - 3/2 - Bến xe Miền Tây', '05:00:00', '21:00:00', 15),
+    ('15', N'Chợ Phú Định - Đầm Sen', '05:00:00', '21:00:00', 15),
+    ('16', N'Bến xe buýt Chợ Lớn - Bến xe buýt Tân Phú', '05:00:00', '21:00:00', 15),
+    ('18', N'Bến Thành - Chợ Hiệp Thành', '05:00:00', '21:00:00', 15),
+    ('19', N'Bến Thành - KCX Linh Trung - Đại học Quốc gia', '05:00:00', '21:00:00', 15),
+    ('20', N'Bến Thành - Nhà Bè', '05:00:00', '21:00:00', 15),
+    ('22', N'Bến xe buýt Quận 8 - Bến xe buýt Lê Minh Xuân', '05:00:00', '21:00:00', 15),
+    ('23', N'Bến xe buýt Chợ Lớn - Ngã 3 Giồng - Cầu Lớn', '05:00:00', '21:00:00', 15),
+    ('24', N'Bến xe Miền Đông - Hóc Môn', '05:00:00', '21:00:00', 15),
+    ('25', N'Bến xe buýt Quận 8 - KDC Vĩnh Lộc A', '05:00:00', '21:00:00', 15),
+    ('27', N'Bến xe buýt Sài Gòn - Âu Cơ - BX An Sương', '05:00:00', '21:00:00', 15),
+    ('28', N'Bến xe buýt Sài Gòn - Chợ Xuân Thới Thượng', '05:00:00', '21:00:00', 15),
+    ('29', N'Phà Cát Lái - Chợ nông sản Thủ Đức', '05:00:00', '21:00:00', 15),
+    ('30', N'Chợ Tân Hương - Bến xe buýt Văn Thánh', '05:00:00', '21:00:00', 15),
+    ('31', N'Đại học Tôn Đức Thắng - Bến Thành - Đại học Văn Lang', '05:00:00', '21:00:00', 15),
+    ('32', N'Bến xe Miền Tây - Bến xe Ngã tư Ga', '05:00:00', '21:00:00', 15),
+    ('33', N'Bến xe An Sương - Suối Tiên - Đại học Quốc gia', '05:00:00', '21:00:00', 15),
+    ('34', N'Bến xe buýt Sài Gòn - Bến xe buýt Quận 8', '05:00:00', '21:00:00', 15),
+    ('36', N'Bến Thành - Thới An', '05:00:00', '21:00:00', 15),
+    ('38', N'KDC Tân Quy - Bến Thành - Đầm Sen', '05:00:00', '21:00:00', 15),
+    ('39', N'Bến Thành - Võ Văn Kiệt - Bến xe Miền Tây', '05:00:00', '21:00:00', 15),
+    ('41', N'Bến xe Miền Tây - Ngã tư Bốn Xã - Bến xe An Sương', '05:00:00', '21:00:00', 15),
+    ('43', N'Bến xe Miền Đông - Trường Đại học Quản lý và Công nghệ', '05:00:00', '21:00:00', 15),
+    ('44', N'Cảng Quận 4 - Bình Quới', '05:00:00', '21:00:00', 15),
+    ('45', N'Đại học Kinh Tế - Bến Thành - Bến xe Miền Đông', '05:00:00', '21:00:00', 15),
+    ('46', N'Công viên Tôn Thất Thuyết - Bến Mễ Cốc', '05:00:00', '21:00:00', 15),
+    ('47', N'Bến xe buýt Chợ Lớn - Quốc lộ 50 - Hưng Long', '05:00:00', '21:00:00', 15),
+    ('48', N'Bến xe buýt Tân Phú - Chợ Hiệp Thành', '05:00:00', '21:00:00', 15),
+    ('50', N'Đại học Bách Khoa - Đại học Quốc Gia', '05:00:00', '21:00:00', 15),
+    ('52', N'Bến Thành - Đại học Quốc Gia', '05:00:00', '21:00:00', 15),
+    ('53', N'Lê Hồng Phong - Đại học Quốc Gia', '05:00:00', '21:00:00', 15),
+    ('55', N'Công viên phần mềm Quang Trung - Bến xe buýt Văn Thánh', '05:00:00', '21:00:00', 15),
+    ('56', N'BX buýt Chợ Lớn - BXMĐ mới', '05:00:00', '21:00:00', 15),
+    ('57', N'Chợ Phước Bình - Trường THPT Hiệp Bình', '05:00:00', '21:00:00', 15),
+    ('58', N'Bến xe Ngã Tư Ga - KCN Đông Nam', '05:00:00', '21:00:00', 15),
+    ('59', N'Bến xe buýt Quận 8 - Bến xe Ngã Tư Ga', '05:00:00', '21:00:00', 15),
+    ('61', N'Bến xe buýt Chợ Lớn - KCN Lê Minh Xuân', '05:00:00', '21:00:00', 15),
+    ('62', N'Bến xe buýt Quận 8 - Thới An', '05:00:00', '21:00:00', 15),
+    ('64', N'Bến xe Miền Đông - Đầm Sen', '05:00:00', '21:00:00', 15),
+    ('65', N'Bến Thành - CMT8 - Bến xe An Sương', '05:00:00', '21:00:00', 15),
+    ('68', N'Bến xe buýt Chợ Lớn - ĐH Tài Chính - Marketing', '05:00:00', '21:00:00', 15),
+    ('69', N'Bến xe buýt Sài Gòn - KDC Vĩnh Lộc', '05:00:00', '21:00:00', 15),
+    ('70', N'Tân Quy - Bến Súc', '05:00:00', '21:00:00', 15),
+    ('71', N'Bến xe An Sương - Phật Cô Đơn', '05:00:00', '21:00:00', 15),
+    ('72', N'Bến xe buýt Sài Gòn - Hiệp Phước', '05:00:00', '21:00:00', 15),
+    ('73', N'Chợ Bình Chánh - KCN Lê Minh Xuân', '05:00:00', '21:00:00', 15),
+    ('74', N'Bến xe An Sương - Bến xe Củ Chi', '05:00:00', '21:00:00', 15),
+    ('76', N'Long Phước - Bến xe Miền Đông mới', '05:00:00', '21:00:00', 15),
+    ('77', N'Đồng Hòa - Cần Thạnh', '05:00:00', '21:00:00', 15),
+    ('78', N'Bến xe buýt Thới An - Ngã ba Giồng - Cầu Lớn', '05:00:00', '21:00:00', 15),
+    ('79', N'Bến xe Củ Chi - Đền Bến Dược', '05:00:00', '21:00:00', 15),
+    ('81', N'Bến xe buýt Chợ Lớn - Lê Minh Xuân', '05:00:00', '21:00:00', 15),
+    ('84', N'Bến xe buýt Chợ Lớn - Tân Túc', '05:00:00', '21:00:00', 15),
+    ('85', N'Bến xe An Sương - KCN Nhị Xuân', '05:00:00', '21:00:00', 15),
+    ('86', N'Bến Thành - Đại học Tôn Đức Thắng - Nhơn Đức', '05:00:00', '21:00:00', 15),
+    ('87', N'Bến xe Củ Chi - An Nhơn Tây', '05:00:00', '21:00:00', 15),
+    ('88', N'Bến Thành - Chợ Long Phước', '05:00:00', '21:00:00', 15),
+    ('89', N'Đại học Nông Lâm - Bến tàu Hiệp Bình Chánh', '05:00:00', '21:00:00', 15),
+    ('90', N'Phà Bình Khánh - Cần Thạnh', '05:00:00', '21:00:00', 15),
+    ('91', N'Bến xe Miền Tây - Chợ nông sản Thủ Đức', '05:00:00', '21:00:00', 15),
+    ('93', N'Bến Thành - Bến xe Miền Đông mới', '05:00:00', '21:00:00', 15),
+    ('99', N'Chợ Thạnh Mỹ Lợi - Đại học Quốc Gia', '05:00:00', '21:00:00', 15),
+    ('100', N'Bến xe Củ Chi - Cầu Tân Thái', '05:00:00', '21:00:00', 15),
+    ('101', N'Bến xe buýt Chợ Lớn - Chợ Tân Nhựt', '05:00:00', '21:00:00', 15),
+    ('102', N'Bến xe buýt Sài Gòn - Nguyễn Văn Linh - BX Miền Tây', '05:00:00', '21:00:00', 15),
+    ('103', N'Bến xe buýt Chợ Lớn - Bến xe Ngã Tư Ga', '05:00:00', '21:00:00', 15),
+    ('104', N'Bến xe An Sương - Bến xe buýt Văn Thánh', '05:00:00', '21:00:00', 15),
+    ('107', N'Bến xe Củ Chi - Bố Heo', '05:00:00', '21:00:00', 15),
+    ('110', N'Hiệp Phước - Phước Lộc', '05:00:00', '21:00:00', 15),
+    ('122', N'Bến xe An Sương - Tân Quy', '05:00:00', '21:00:00', 15),
+    ('126', N'Bến xe Củ Chi - Bình Mỹ', '05:00:00', '21:00:00', 15),
+    ('127', N'An Thới Đông - Ngã ba Bà Xán', '05:00:00', '21:00:00', 15),
+    ('128', N'Tân Điền - An Nghĩa', '05:00:00', '21:00:00', 15),
+    ('139', N'Bến xe Miền Tây - Khu tái định cư Phú Mỹ', '05:00:00', '21:00:00', 15),
+    ('140', N'Bến xe buýt Sài Gòn - Phạm Thế Hiển - Khu dân cư Phú Lợi', '05:00:00', '21:00:00', 15),
+    ('141', N'KDL BCR - Long Trường - KCX Linh Trung II', '05:00:00', '21:00:00', 15),
+    ('145', N'Bến xe buýt Chợ Lớn - Chợ Hiệp Thành', '05:00:00', '21:00:00', 15),
+    ('146', N'Bến xe Miền Đông - Chợ Hiệp Thành', '05:00:00', '21:00:00', 15),
+    ('148', N'Bến xe Miền Tây - Gò Vấp', '05:00:00', '21:00:00', 15),
+    ('150', N'Bến xe buýt Chợ Lớn - Bến xe Miền đông mới', '05:00:00', '21:00:00', 15),
+    ('151', N'Bến xe Miền Tây - Bến xe An Sương', '05:00:00', '21:00:00', 15),
+    ('152', N'KDC Trung Sơn - Bến Thành - Sân bay Tân Sơn Nhất', '05:00:00', '21:00:00', 15),
+    ('D4', N'Vinhomes Grand Park - Bến xe buýt Sài Gòn', '05:00:00', '21:00:00', 15),
+    ('153', N'Bến tàu thủy Bình An - Đường Liên Phường', '05:00:00', '21:00:00', 15),
+    ('154', N'Trường Đại học Quản lý và Công Nghệ - Masteri An Phú', '05:00:00', '21:00:00', 15),
+    ('155', N'Ga Bến Thành - Nhà hát Thành phố', '05:00:00', '21:00:00', 15),
+    ('156', N'Ga Bến Thành - Ga Hòa Hưng', '05:00:00', '21:00:00', 15),
+    ('157', N'Bến xe buýt Văn Thánh - Khu dân cư Thạnh Mỹ Lợi', '05:00:00', '21:00:00', 15),
+    ('158', N'Bến xe buýt Văn Thánh - Cư xá Thanh Đa', '05:00:00', '21:00:00', 15),
+    ('159', N'Chung cư Ngô Tất Tố - Ngã tư Hàng Xanh', '05:00:00', '21:00:00', 15),
+    ('160', N'Ga Văn Thánh - Vinhomes Central Park', '05:00:00', '21:00:00', 15),
+    ('161', N'Bến xe buýt Văn Thánh - Bến xe Ngã tư Ga', '05:00:00', '21:00:00', 15),
+    ('162', N'Chung cư Man Thiện - Trường THCS Hoa Lư', '05:00:00', '21:00:00', 15),
+    ('163', N'Cao đẳng Công Thương - Trường THCS Phước Bình', '05:00:00', '21:00:00', 15),
+    ('164', N'Đại học Nông Lâm - Chung cư Topaz', '05:00:00', '21:00:00', 15),
+    ('165', N'Đại học Nông Lâm - Khu Công nghệ cao', '05:00:00', '21:00:00', 15),
+    ('166', N'Đại học Quốc Gia - Suối Tiên', '05:00:00', '21:00:00', 15),
+    ('167', N'Đại học Nông Lâm - Khu chế xuất Linh Trung 1', '05:00:00', '21:00:00', 15),
+    ('168', N'Trường Đại học Ngân hàng - Ga Thủ Đức', '05:00:00', '21:00:00', 15),
+    ('169', N'Vincom Thủ Đức - Ngã tư Tây Hòa', '05:00:00', '21:00:00', 15),
+    ('170', N'Bến xe buýt Khu A - Bến xe buýt Khu B', '05:00:00', '21:00:00', 15),
+    ('13', N'Bến xe buýt Sài Gòn - Bến xe Củ Chi', '05:00:00', '21:00:00', 15),
+    ('94', N'Bến xe buýt Chợ Lớn - Bến xe Củ Chi', '05:00:00', '21:00:00', 15),
+    ('75', N'Sài Gòn - Cần Giờ', '05:00:00', '21:00:00', 15),
+    ('67', N'BXMĐ cũ - BXMĐ mới', '05:00:00', '21:00:00', 15),
+    ('109', N'Bến xe buýt Sài Gòn - Sân bay Tân Sơn Nhất', '05:00:00', '21:00:00', 15),
+    ('171', N'Bến xe Phú Chánh - Trung tâm HC Bình Dương - Bến Thành', '05:00:00', '21:00:00', 15),
+    ('61-3', N'BX An Sương - Thủ Dầu Một', '05:00:00', '21:00:00', 15),
+    ('61-2', N'Thủ Dầu Một - Mỹ Phước (Bến Cát)', '05:00:00', '21:00:00', 15),
+    ('61-4', N'Thủ Dầu Một - Thanh Tuyền - Dầu Tiếng', '05:00:00', '21:00:00', 15),
+    ('61-8', N'Thủ Dầu Một - Bến xe Miền Đông', '05:00:00', '21:00:00', 15),
+    ('61-9', N'Thủ Dầu Một - Suối Tiên - BXMĐ mới', '05:00:00', '21:00:00', 15),
+    ('61-77', N'Thành phố mới - thành phố Dĩ An - BXMĐ mới', '05:00:00', '21:00:00', 15),
+    ('61-37', N'Becamex tower - Huỳnh Văn Lũy - Văn Phòng Công Ty Xe Buýt Becamex Tokyu', '05:00:00', '21:00:00', 15),
+    ('61-38', N'Becamex tower - Huỳnh Văn Lũy - Trường Ngô Thời Nhiệm', '05:00:00', '21:00:00', 15),
+    ('61-39', N'Becamex tower - Khu Công Nghiệp Vsip 2 - Nhà Ở An Sinh Xã Hội Hòa Lợi', '05:00:00', '21:00:00', 15),
+    ('61-51', N'Becamex tower - Thành phố mới Bình Dương - Nhà ở an sinh xã hội Định Hoà', '05:00:00', '21:00:00', 15),
+    ('61-52', N'Becamex tower - Hikari - Văn phòng công ty xe buýt Becamex Tokyu', '05:00:00', '21:00:00', 15),
+    ('61-53', N'Becamex tower - Trường Ngô Thời Nhiệm', '05:00:00', '21:00:00', 15),
+    ('61-55', N'Becamex tower - Đại Học Quốc Tế Miền Đông', '05:00:00', '21:00:00', 15),
+    ('61-67', N'Hikari - Sora gardens - Nhà ở an sinh xã hội Định Hòa', '05:00:00', '21:00:00', 15),
+    ('61-68', N'Hikari - Chợ Phú Chánh - Nhà ở An sinh xã hội Hòa Lợi', '05:00:00', '21:00:00', 15),
+    ('61-70', N'Thành phố mới - Thành phố Bến Cát', '05:00:00', '21:00:00', 15),
+    ('61-73', N'Thành phố mới - Thành phố Tân Uyên', '05:00:00', '21:00:00', 15),
+    ('72-4', N'Bến xe khách Bà Rịa Vũng tàu - Bình Châu', '05:00:00', '21:00:00', 15),
+    ('173', N'Trung tâm Côn Đảo - Cỏ Ống', '05:00:00', '21:00:00', 15);
+
+UPDATE t
+SET t.tenTuyen = s.tenTuyen
+FROM dbo.TuyenXe t
+INNER JOIN @TuyenNQ09 s ON t.maTuyen = s.maTuyen;
+
+INSERT INTO dbo.TuyenXe (maTuyen, tenTuyen, gioBatDau, gioKetThuc, gianCachPhut, trangThai)
+SELECT s.maTuyen, s.tenTuyen, s.gioBatDau, s.gioKetThuc, s.gianCachPhut, 1
+FROM @TuyenNQ09 s
+WHERE NOT EXISTS (SELECT 1 FROM dbo.TuyenXe t WHERE t.maTuyen = s.maTuyen);
+
+COMMIT TRANSACTION;
+
+DECLARE @tong int = (SELECT COUNT(*) FROM dbo.TuyenXe);
+PRINT N'Da dong bo danh muc tuyen xe buyt NQ 09/2026/NQ-HDND. Tong so tuyen trong dbo.TuyenXe: ' + CAST(@tong AS nvarchar(10));

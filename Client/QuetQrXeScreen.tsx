@@ -6,9 +6,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import Colors from './constants/colors';
+import { StatusBar } from 'expo-status-bar';
+import { headerInset, Icon } from './components/MobileUi';
+import { Colors } from './constants/colors';
 import { quetQrDanXe } from './services/vanHanhService';
 
 interface Props {
@@ -19,6 +22,7 @@ interface Props {
 const GUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 export default function QuetQrXeScreen({ onBack, onXeNhanDien }: Props) {
+  const { width, height } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   const [dangXuLy, setDangXuLy] = useState(false);
   const [thongBao, setThongBao] = useState('Hướng camera vào mã QR cố định dán trên xe buýt.');
@@ -35,6 +39,8 @@ export default function QuetQrXeScreen({ onBack, onXeNhanDien }: Props) {
   if (!permission.granted) {
     return (
       <View style={styles.centerContainer}>
+        <StatusBar style="dark" />
+        <Icon name="camera-outline" size={30} />
         <Text style={styles.permissionTitle}>Yêu cầu quyền Camera</Text>
         <Text style={styles.permissionText}>
           SmartBus cần quyền truy cập camera để quét mã QR dán trên xe buýt và tự động nhận diện chuyến xe.
@@ -92,6 +98,7 @@ export default function QuetQrXeScreen({ onBack, onXeNhanDien }: Props) {
 
   return (
     <View style={styles.container}>
+      <StatusBar style="light" />
       <CameraView
         style={StyleSheet.absoluteFill}
         facing="back"
@@ -102,13 +109,14 @@ export default function QuetQrXeScreen({ onBack, onXeNhanDien }: Props) {
       {/* Overlay giao dien */}
       <View style={styles.overlay}>
         <View style={styles.topBar}>
-          <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-            <Text style={styles.backBtnText}>✕ Đóng</Text>
+          <TouchableOpacity accessibilityRole="button" style={styles.backBtn} onPress={onBack}>
+            <Icon name="close" color={Colors.white} size={18} />
+            <Text style={styles.backBtnText}>Đóng</Text>
           </TouchableOpacity>
-          <Text style={styles.screenTitle}>MUA VÉ NHANH QUA QR XE</Text>
+          <Text style={styles.screenTitle}>Quét QR trên xe</Text>
         </View>
 
-        <View style={styles.scanTargetBox}>
+        <View pointerEvents="none" style={[styles.scanTargetBox, { width: Math.min(260, width - 64, height * 0.4) }]}>
           <View style={styles.cornerTL} />
           <View style={styles.cornerTR} />
           <View style={styles.cornerBL} />
@@ -156,13 +164,17 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 8,
+    borderRadius: 12,
+    minHeight: 48,
+    justifyContent: 'center',
   },
   btnPrimaryText: {
     color: '#FFF',
     fontWeight: 'bold',
   },
   btnSecondary: {
+    minHeight: 48,
+    justifyContent: 'center',
     paddingVertical: 10,
     paddingHorizontal: 20,
   },
@@ -174,23 +186,28 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 50,
-    paddingBottom: 40,
+    paddingTop: headerInset + 12,
+    paddingBottom: 48,
+    gap: 12,
   },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     width: '90%',
-    justifyContent: 'center',
-    position: 'relative',
+    gap: 12,
+    backgroundColor: Colors.scrim,
+    borderRadius: 16,
+    padding: 6,
   },
   backBtn: {
-    position: 'absolute',
-    left: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.primaryDark,
     paddingVertical: 8,
     paddingHorizontal: 14,
-    borderRadius: 20,
+    borderRadius: 999,
   },
   backBtnText: {
     color: '#FFF',
@@ -204,8 +221,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   scanTargetBox: {
-    width: 260,
-    height: 260,
+    aspectRatio: 1,
     borderRadius: 16,
     position: 'relative',
     borderWidth: 1,
@@ -219,7 +235,7 @@ const styles = StyleSheet.create({
     height: 32,
     borderTopWidth: 4,
     borderLeftWidth: 4,
-    borderColor: '#10B981',
+    borderColor: Colors.accent,
     borderTopLeftRadius: 16,
   },
   cornerTR: {
@@ -230,7 +246,7 @@ const styles = StyleSheet.create({
     height: 32,
     borderTopWidth: 4,
     borderRightWidth: 4,
-    borderColor: '#10B981',
+    borderColor: Colors.accent,
     borderTopRightRadius: 16,
   },
   cornerBL: {
@@ -241,7 +257,7 @@ const styles = StyleSheet.create({
     height: 32,
     borderBottomWidth: 4,
     borderLeftWidth: 4,
-    borderColor: '#10B981',
+    borderColor: Colors.accent,
     borderBottomLeftRadius: 16,
   },
   cornerBR: {
@@ -252,11 +268,11 @@ const styles = StyleSheet.create({
     height: 32,
     borderBottomWidth: 4,
     borderRightWidth: 4,
-    borderColor: '#10B981',
+    borderColor: Colors.accent,
     borderBottomRightRadius: 16,
   },
   bottomInfo: {
-    backgroundColor: 'rgba(0,0,0,0.75)',
+    backgroundColor: Colors.scrim,
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderRadius: 14,
