@@ -27,3 +27,11 @@ secrets.json
 .env.*
 !.env.example
 
+
+# Tai lieu bao cao, ghi chu va file khong lien quan den source code
+word/
+mp3/
+context/
+docs/superpowers/
+CONTEXT_*.md
+untitled*.drawio
