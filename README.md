@@ -85,7 +85,7 @@ Thay `IP_MAY_CHU` bằng IPv4 Wi-Fi của máy mới, mở cùng mạng với đ
 
 **Soát vé ngoại tuyến trên Android**
 
-Giữ biến URL API như trên. Sau khi cài SDK và bật USB debugging, từ `Client` chạy `npx expo run:android --device` để cài bản Android có SQLCipher. Chọn thiết bị và chuyến đang chạy, tải gói sau khi đã phát hành vé, ngắt mạng trên máy nhân viên rồi quét. Kết nối lại để đồng bộ. Xem [hướng dẫn soát vé](docs/soat-ve-offline.md) và [ghi chú bàn giao](context/HANDOFF.md).
+Giữ biến URL API như trên. Sau khi cài SDK và bật USB debugging, từ `Client` chạy `npx expo run:android --device` để cài bản Android có SQLCipher. Chọn thiết bị và chuyến đang chạy, tải gói sau khi đã phát hành vé, ngắt mạng trên máy nhân viên rồi quét. Kết nối lại để đồng bộ. Xem [hướng dẫn soát vé](docs/soat-ve-offline.md).
 
 ## Dữ liệu và kiểm thử
 
@@ -119,9 +119,7 @@ Chạy bộ test backend trên database demo dành cho kiểm thử. Một số 
   - Nạp đủ **134 tuyến xe buýt TP.HCM** theo Nghị quyết `09/2026/NQ-HĐND` (`Server/Database/04_seed_134_tuyen_NQ09_2026.sql`).
   - Nâng cấp đồng bộ giao diện **Mobile (`Client/`)** và **Web Admin (`Admin/`)** theo bộ màu **Xanh dương – Xám – Trắng**.
   - Đầy đủ luồng: đăng ký/đăng nhập/phân quyền, hồ sơ ưu tiên, mua vé mô phỏng, quét QR dán trên xe mua nhanh, ví QR động (`FLAG_SECURE` + tăng độ sáng), soát vé ngoại tuyến SQLCipher + âm báo + đồng bộ phát hiện quét trùng, tra cứu khẩn cấp CCCD/SĐT và khóa vé.
-- **Đang hoàn thiện cho đợt nộp bài (trước 23h00 ngày 22/11/2026)**:
-  - Lấy bằng chứng & số liệu thực nghiệm trên thiết bị Android thật (SQLCipher, camera, âm báo, `FLAG_SECURE`, đo thời gian xác thực / p95).
-  - Hoàn thiện các sơ đồ Chương 2, chèn ảnh giao diện/số liệu Chương 3 vào báo cáo Word & xuất PDF.
-  - Chuẩn bị slide thuyết trình và quay video thuyết trình + demo (tối đa 15 phút).
-  - Chi tiết bàn giao xem tại [context/HANDOFF.md](context/HANDOFF.md) và checklist nộp bài tại [context/YEU_CAU_NOP_DO_AN.md](context/YEU_CAU_NOP_DO_AN.md).
-
+- **Giới hạn hiện tại**:
+  - Thanh toán trực tuyến và xác thực VNeID, thẻ ngân hàng, ví điện tử đang ở mức mô phỏng.
+  - Chưa đo thời gian xác thực ngoại tuyến (p95) và chưa thử quét trùng với hai điện thoại thật.
+  - Chưa tính giá vé theo chặng, chưa làm mới gói soát vé giữa phiên.
