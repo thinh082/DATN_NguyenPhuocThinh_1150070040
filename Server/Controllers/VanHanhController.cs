@@ -22,16 +22,16 @@ public class VanHanhController : ControllerBase
     }
 
     [HttpGet("danh-sach-tuyen")]
-    public async Task<IActionResult> layDanhSachTuyenXe()
+    public async Task<IActionResult> layDanhSachTuyenXe([FromQuery] string? loc = null)
     {
         try
         {
-            var duLieu = await _vanHanhService.layDanhSachTuyenXe();
-            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lay danh sach tuyen xe thanh cong"));
+            var duLieu = await _vanHanhService.layDanhSachTuyenXe(loc);
+            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lấy danh sách tuyến xe thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -43,14 +43,14 @@ public class VanHanhController : ControllerBase
             var duLieu = await _vanHanhService.layChiTietTuyenXe(id);
             if (duLieu == null)
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Khong tim thay tuyen xe", 404));
+                return Ok(KetQuaPhanHoi.ThatBai("Không tìm thấy tuyến xe", 404));
             }
 
-            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lay chi tiet tuyen xe thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lấy chi tiết tuyến xe thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -62,20 +62,20 @@ public class VanHanhController : ControllerBase
         {
             if (string.IsNullOrWhiteSpace(thongTin.maTuyen) || string.IsNullOrWhiteSpace(thongTin.tenTuyen))
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Ma tuyen va ten tuyen khong duoc de trong", 400));
+                return Ok(KetQuaPhanHoi.ThatBai("Mã tuyến và tên tuyến không được để trống", 400));
             }
 
             var ketQua = await _vanHanhService.luuTuyenXe(thongTin);
             if (ketQua == null)
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Khong tim thay tuyen xe de cap nhat", 404));
+                return Ok(KetQuaPhanHoi.ThatBai("Không tìm thấy tuyến xe để cập nhật", 404));
             }
 
-            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Luu tuyen xe thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Lưu tuyến xe thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -85,11 +85,11 @@ public class VanHanhController : ControllerBase
         try
         {
             var duLieu = await _vanHanhService.layDanhSachTramDung(tuyenXeId);
-            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lay danh sach tram dung thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lấy danh sách trạm dừng thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -101,20 +101,20 @@ public class VanHanhController : ControllerBase
         {
             if (string.IsNullOrWhiteSpace(thongTin.maTram) || string.IsNullOrWhiteSpace(thongTin.tenTram))
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Ma tram va ten tram khong duoc de trong", 400));
+                return Ok(KetQuaPhanHoi.ThatBai("Mã trạm và tên trạm không được để trống", 400));
             }
 
             var ketQua = await _vanHanhService.luuTramDung(thongTin);
             if (ketQua == null)
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Khong tim thay tram dung de cap nhat", 404));
+                return Ok(KetQuaPhanHoi.ThatBai("Không tìm thấy trạm dừng để cập nhật", 404));
             }
 
-            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Luu tram dung thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Lưu trạm dừng thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -124,11 +124,11 @@ public class VanHanhController : ControllerBase
         try
         {
             var duLieu = await _vanHanhService.layDanhSachXeBuyt();
-            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lay danh sach xe buyt thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lấy danh sách xe buýt thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -140,20 +140,20 @@ public class VanHanhController : ControllerBase
         {
             if (string.IsNullOrWhiteSpace(thongTin.bienSo))
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Bien so xe khong duoc de trong", 400));
+                return Ok(KetQuaPhanHoi.ThatBai("Biển số xe không được để trống", 400));
             }
 
             var ketQua = await _vanHanhService.luuXeBuyt(thongTin);
             if (ketQua == null)
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Khong tim thay xe buyt de cap nhat", 404));
+                return Ok(KetQuaPhanHoi.ThatBai("Không tìm thấy xe buýt để cập nhật", 404));
             }
 
-            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Luu xe buyt thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Lưu xe buýt thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -193,7 +193,7 @@ public class VanHanhController : ControllerBase
         {
             thongTin.nhanVienId = int.Parse(User.FindFirst("id")!.Value);
             var ketQua = await _vanHanhService.batDauPhienSoatVe(thongTin);
-            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Bat dau phien soat ve thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Bắt đầu phiên soát vé thành công"));
         }
         catch (Exception ex)
         {
@@ -213,14 +213,14 @@ public class VanHanhController : ControllerBase
             var ketQua = await _vanHanhService.ketThucPhienSoatVe(phienId);
             if (!ketQua)
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Khong tim thay phien soat ve", 404));
+                return Ok(KetQuaPhanHoi.ThatBai("Không tìm thấy phiên soát vé", 404));
             }
 
-            return Ok(KetQuaPhanHoi.ThanhCong(new { phienId }, "Ket thuc phien soat ve thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(new { phienId }, "Kết thúc phiên soát vé thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 }

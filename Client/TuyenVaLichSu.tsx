@@ -1,9 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ErrorBanner, Icon, InputField } from './components/MobileUi';
+import { ErrorBanner, Icon, InputField, SelectField } from './components/MobileUi';
 import { Colors } from './constants/colors';
-import { ChiTietTuyen, layChiTietTuyenXe, layDanhSachTuyenXe, TuyenXe } from './services/vanHanhService';
+import { ChiTietTuyen, layChiTietTuyenXe, layDanhSachTuyenXe, LocTuyen, TuyenXe } from './services/vanHanhService';
 import { layLichSuLuotDi, LuotDi } from './services/veService';
+
+const locOptions: { value: number; label: string; loc: LocTuyen }[] = [
+  { value: 0, label: 'Tất cả tuyến', loc: 'tatCa' },
+  { value: 1, label: 'Miễn phí theo chính sách (NQ 09/2026)', loc: 'mienPhi' },
+  { value: 2, label: 'Tuyến tính phí', loc: 'tinhPhi' },
+];
 
 const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase();
 
@@ -14,13 +20,14 @@ export function TraCuuTuyen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [lastRouteId, setLastRouteId] = useState<number | null>(null);
+  const [loc, setLoc] = useState(0);
   async function load() {
     setLastRouteId(null);
-    try { setLoading(true); setError(''); const res = await layDanhSachTuyenXe(); if (res.statusCode !== 200) throw new Error(res.message); setRoutes(res.data.filter(x => x.trangThai)); }
+    try { setLoading(true); setError(''); const res = await layDanhSachTuyenXe(locOptions[loc].loc); if (res.statusCode !== 200) throw new Error(res.message); setRoutes(res.data.filter(x => x.trangThai)); }
     catch (e: any) { setError(e.message || 'Không thể tải tuyến xe.'); }
     finally { setLoading(false); }
   }
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [loc]);
   const filtered = useMemo(() => routes.filter(x => normalize(`${x.maTuyen} ${x.tenTuyen}`).includes(normalize(query.trim()))), [routes, query]);
   async function open(id: number) {
     setLastRouteId(id);
@@ -31,7 +38,8 @@ export function TraCuuTuyen() {
   return <View style={styles.card}>
     {detail ? <>
       <TouchableOpacity onPress={() => { setDetail(null); setLastRouteId(null); setError(''); }}><Text style={styles.link}>← Danh sách tuyến</Text></TouchableOpacity>
-      <View style={styles.routeHeader}><Text style={styles.badge}>{detail.maTuyen}</Text><View style={{ flex: 1 }}><Text style={styles.title}>{detail.tenTuyen}</Text><Text style={styles.sub}>{detail.gioBatDau} – {detail.gioKetThuc}{detail.gianCachPhut != null ? ` · ${detail.gianCachPhut} phút/chuyến` : ''}</Text></View></View>
+      <View style={styles.routeHeader}><Text style={styles.badge}>{detail.maTuyen}</Text><View style={{ flex: 1 }}><Text style={styles.title}>{detail.tenTuyen}</Text><Text style={styles.sub}>{detail.gioBatDau} – {detail.gioKetThuc}{detail.gianCachPhut != null ? ` · ${detail.gianCachPhut} phút/chuyến` : ''}{detail.cuLyKm ? ` · ${detail.cuLyKm} km` : ''}</Text><PolicyBadge route={detail} /></View></View>
+      {detail.mienPhi && !!detail.tenChinhSach && <Text style={styles.sub}>Căn cứ: {detail.tenChinhSach}</Text>}
       {detail.loTrinhs.length === 0 ? <Text style={styles.empty}>Chưa có thông tin lộ trình cho tuyến này.</Text> : detail.loTrinhs.map(path => <View key={path.id} style={styles.path}>
         <Text style={styles.pathTitle}>{path.chieu === 'Di' ? 'Chiều đi' : path.chieu === 'Ve' ? 'Chiều về' : path.chieu} · {path.tenLoTrinh}</Text>
         {path.danhSachTram.length === 0 ? <Text style={styles.empty}>Chưa có trạm dừng.</Text> : path.danhSachTram.map((stop, index) => (
@@ -48,12 +56,18 @@ export function TraCuuTuyen() {
     </> : <>
       <Text accessibilityRole="header" style={styles.title}>Tra cứu tuyến xe</Text>
       <InputField label="Mã hoặc tên tuyến" icon="search-outline" placeholder="Ví dụ: 01 hoặc Bến Thành" value={query} onChangeText={setQuery} />
+      <SelectField label="Lọc theo giá vé" icon="pricetags-outline" placeholder="Tất cả tuyến" options={locOptions} value={loc} onChange={setLoc} />
+      {!loading && <Text style={styles.sub}>{filtered.length} tuyến</Text>}
       {!loading && !error && filtered.length === 0 && <Text style={styles.empty}>{routes.length === 0 ? 'Chưa có tuyến xe hoạt động.' : 'Không tìm thấy tuyến phù hợp.'}</Text>}
-      {filtered.map(route => <TouchableOpacity key={route.id} style={styles.route} onPress={() => void open(route.id)} disabled={loading}><Text style={styles.badge}>{route.maTuyen}</Text><View style={{ flex: 1 }}><Text style={styles.routeTitle}>{route.tenTuyen}</Text><Text style={styles.sub}>{route.gioBatDau} – {route.gioKetThuc}{route.gianCachPhut != null ? ` · ${route.gianCachPhut} phút/chuyến` : ''}</Text></View><Icon name="chevron-forward-outline" size={18} /></TouchableOpacity>)}
+      {filtered.map(route => <TouchableOpacity key={route.id} style={styles.route} onPress={() => void open(route.id)} disabled={loading}><Text style={styles.badge}>{route.maTuyen}</Text><View style={{ flex: 1 }}><Text style={styles.routeTitle}>{route.tenTuyen}</Text><Text style={styles.sub}>{route.gioBatDau} – {route.gioKetThuc}{route.gianCachPhut != null ? ` · ${route.gianCachPhut} phút/chuyến` : ''}</Text><PolicyBadge route={route} /></View><Icon name="chevron-forward-outline" size={18} /></TouchableOpacity>)}
     </>}
     {loading && <ActivityIndicator color={Colors.primary} style={{ marginVertical: 16 }} />}
     {!!error && <View style={styles.errorBox}><ErrorBanner message={error} /><TouchableOpacity onPress={() => void (lastRouteId != null ? open(lastRouteId) : load())}><Text style={styles.link}>Thử lại</Text></TouchableOpacity></View>}
   </View>;
+}
+
+function PolicyBadge({ route }: { route: TuyenXe }) {
+  return <Text style={[styles.policy, route.mienPhi ? styles.policyFree : styles.policyPaid]}>{route.mienPhi ? 'Miễn phí · NQ 09/2026' : 'Tính phí'}</Text>;
 }
 
 export function LichSuChuyen() {
@@ -95,6 +109,9 @@ export function LichSuChuyen() {
 }
 
 const styles = StyleSheet.create({
+  policy: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden', fontSize: 12, fontWeight: '700' },
+  policyFree: { backgroundColor: Colors.successSurface, color: Colors.successText },
+  policyPaid: { backgroundColor: Colors.warningSurface, color: Colors.warningText },
   card: { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border, gap: 12 },
   title: { fontSize: 19, fontWeight: '800', color: Colors.textPrimary },
   sub: { fontSize: 13, color: Colors.textSecondary, marginTop: 3 },

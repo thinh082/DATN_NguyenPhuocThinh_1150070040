@@ -70,8 +70,8 @@ public class NguoiDungService : INguoiDungService
         if (thongTin.id == 0)
         {
             if (string.IsNullOrWhiteSpace(thongTin.hoTen) || string.IsNullOrWhiteSpace(thongTin.matKhau) || thongTin.matKhau.Length < 8)
-                throw new ArgumentException("Can ho ten va mat khau it nhat 8 ky tu.");
-            if (thongTin.vaiTro != "NhanVienSoatVe" && thongTin.vaiTro != "HanhKhach") throw new ArgumentException("Vai tro khong hop le.");
+                throw new ArgumentException("Cần họ tên và mật khẩu ít nhất 8 ký tự.");
+            if (thongTin.vaiTro != "NhanVienSoatVe" && thongTin.vaiTro != "HanhKhach") throw new ArgumentException("Vai trò không hợp lệ.");
             var nguoiDungMoi = new NguoiDung
             {
                 hoTen = thongTin.hoTen,
@@ -90,7 +90,7 @@ public class NguoiDungService : INguoiDungService
             await _context.NguoiDungs.AddAsync(nguoiDungMoi);
             await _context.SaveChangesAsync();
 
-            return new { id = nguoiDungMoi.id, thongBao = "Them moi nguoi dung thanh cong" };
+            return new { id = nguoiDungMoi.id, thongBao = "Thêm mới người dùng thành công" };
         }
         else
         {
@@ -110,7 +110,7 @@ public class NguoiDungService : INguoiDungService
 
             await _context.SaveChangesAsync();
 
-            return new { id = tonTai.id, thongBao = "Cap nhat nguoi dung thanh cong" };
+            return new { id = tonTai.id, thongBao = "Cập nhật người dùng thành công" };
         }
     }
 

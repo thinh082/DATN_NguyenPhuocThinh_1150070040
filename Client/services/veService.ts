@@ -8,14 +8,18 @@ export interface BieuGia {
   tenNhomDoiTuong: string;
   tuyenXeId: number | null;
   tenTuyen: string;
+  maTuyen?: string | null;
   giaGoc: number;
   soTienMienGiam: number;
   giaThucThu: number;
 }
 
+export const MA_THE_MIEN_PHI = 'TheMienPhi';
+
 export interface VeDienTu {
   id: number;
   maVe: string;
+  maLoaiVe?: string;
   tenLoaiVe: string;
   tenNhomDoiTuong: string;
   tenTuyen: string;
@@ -39,11 +43,19 @@ export async function layLichSuLuotDi(): Promise<PhanHoiApi<LuotDi[]>> {
   return (await apiClient.get<PhanHoiApi<LuotDi[]>>('/api/Ve/lich-su-luot-di')).data;
 }
 
-export const layDanhSachBieuGia = async (tuyenXeId?: number): Promise<PhanHoiApi<BieuGia[]>> => {
-  const url = tuyenXeId ? `/api/Ve/danh-sach-bieu-gia?tuyenXeId=${tuyenXeId}` : '/api/Ve/danh-sach-bieu-gia';
+export const layDanhSachBieuGia = async (tuyenXeId?: number, chiTinhPhi = false): Promise<PhanHoiApi<BieuGia[]>> => {
+  const params = new URLSearchParams();
+  if (tuyenXeId) params.set('tuyenXeId', String(tuyenXeId));
+  if (chiTinhPhi) params.set('chiTinhPhi', 'true');
+  const qs = params.toString();
+  const url = qs ? `/api/Ve/danh-sach-bieu-gia?${qs}` : '/api/Ve/danh-sach-bieu-gia';
   const response = await apiClient.get<PhanHoiApi<BieuGia[]>>(url);
   return response.data;
 };
+
+export async function layTheMienPhi(): Promise<PhanHoiApi<VeDienTu>> {
+  return (await apiClient.get<PhanHoiApi<VeDienTu>>('/api/Ve/the-mien-phi')).data;
+}
 
 export const taoDonHang = async (thongTin: {
   nguoiDungId: number;

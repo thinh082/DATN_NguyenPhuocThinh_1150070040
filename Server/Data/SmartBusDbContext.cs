@@ -46,6 +46,12 @@ public partial class SmartBusDbContext : DbContext
 
     public virtual DbSet<NhomDoiTuong> NhomDoiTuongs { get; set; }
 
+    public virtual DbSet<TinhThanh> TinhThanhs { get; set; }
+
+    public virtual DbSet<ChinhSachMienPhi> ChinhSachMienPhis { get; set; }
+
+    public virtual DbSet<PhuongXa> PhuongXas { get; set; }
+
     public virtual DbSet<PhienSoatVe> PhienSoatVes { get; set; }
 
     public virtual DbSet<SuKienThanhToan> SuKienThanhToans { get; set; }
@@ -422,6 +428,18 @@ public partial class SmartBusDbContext : DbContext
             entity.Property(e => e.cccd)
                 .HasMaxLength(12)
                 .IsUnicode(false);
+            entity.Property(e => e.diaChi).HasMaxLength(1000);
+            entity.Property(e => e.phuongThucXacThuc)
+                .HasMaxLength(20)
+                .IsUnicode(false);
+            entity.Property(e => e.ngayXacThuc).HasPrecision(3);
+            entity.Property(e => e.minhChungXacThuc).HasMaxLength(500);
+            entity.HasOne(d => d.tinhThanh).WithMany()
+                .HasForeignKey(d => d.maTinhThanh)
+                .HasConstraintName("FK_NguoiDung_TinhThanh");
+            entity.HasOne(d => d.phuongXa).WithMany()
+                .HasForeignKey(d => d.maPhuongXa)
+                .HasConstraintName("FK_NguoiDung_PhuongXa");
             entity.Property(e => e.email)
                 .HasMaxLength(254)
                 .IsUnicode(false);
@@ -542,6 +560,29 @@ public partial class SmartBusDbContext : DbContext
                 .IsUnicode(false);
             entity.Property(e => e.tenNhom).HasMaxLength(100);
             entity.Property(e => e.trangThai).HasDefaultValue(true);
+        });
+
+        modelBuilder.Entity<TinhThanh>(entity =>
+        {
+            entity.ToTable("TinhThanh");
+            entity.HasKey(e => e.ma);
+            entity.Property(e => e.ma).ValueGeneratedNever();
+            entity.Property(e => e.ten).HasMaxLength(100);
+            entity.Property(e => e.loai).HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<PhuongXa>(entity =>
+        {
+            entity.ToTable("PhuongXa");
+            entity.HasKey(e => e.ma);
+            entity.Property(e => e.ma).ValueGeneratedNever();
+            entity.Property(e => e.ten).HasMaxLength(100);
+            entity.Property(e => e.loai).HasMaxLength(30);
+            entity.HasIndex(e => new { e.maTinhThanh, e.ten }, "IX_PhuongXa_maTinhThanh");
+            entity.HasOne(d => d.tinhThanh).WithMany(p => p.PhuongXas)
+                .HasForeignKey(d => d.maTinhThanh)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_PhuongXa_TinhThanh");
         });
 
         modelBuilder.Entity<PhienSoatVe>(entity =>
@@ -689,6 +730,21 @@ public partial class SmartBusDbContext : DbContext
                 .HasMaxLength(20)
                 .IsUnicode(false);
             entity.Property(e => e.tenTuyen).HasMaxLength(200);
+            entity.Property(e => e.trangThai).HasDefaultValue(true);
+            entity.Property(e => e.cuLyKm).HasColumnType("decimal(6, 2)");
+            entity.HasOne(d => d.chinhSachMienPhi).WithMany(p => p.TuyenXes)
+                .HasForeignKey(d => d.chinhSachMienPhiId)
+                .HasConstraintName("FK_TuyenXe_ChinhSachMienPhi");
+        });
+
+        modelBuilder.Entity<ChinhSachMienPhi>(entity =>
+        {
+            entity.ToTable("ChinhSachMienPhi");
+            entity.HasIndex(e => e.ma, "UQ_ChinhSachMienPhi_ma").IsUnique();
+            entity.Property(e => e.ma).HasMaxLength(30).IsUnicode(false);
+            entity.Property(e => e.ten).HasMaxLength(200);
+            entity.Property(e => e.canCu).HasMaxLength(500);
+            entity.Property(e => e.yeuCauXacThuc).HasDefaultValue(true);
             entity.Property(e => e.trangThai).HasDefaultValue(true);
         });
 

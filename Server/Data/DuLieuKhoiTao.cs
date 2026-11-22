@@ -39,7 +39,7 @@ public static class DuLieuKhoiTao
         {
             context.NguoiDungs.Add(new NguoiDung
             {
-                hoTen = "Quan Tri Vien He Thong",
+                hoTen = "Quản trị viên hệ thống",
                 email = "admin@smartbus.vn",
                 soDienThoai = "0900000001",
                 cccd = "079000000001",
@@ -55,7 +55,7 @@ public static class DuLieuKhoiTao
         {
             context.NguoiDungs.Add(new NguoiDung
             {
-                hoTen = "Nhan Vien Soat Ve 01",
+                hoTen = "Nhân viên soát vé 01",
                 email = "soatve01@smartbus.vn",
                 soDienThoai = "0900000002",
                 cccd = "079000000002",
@@ -71,7 +71,7 @@ public static class DuLieuKhoiTao
         {
             context.NguoiDungs.Add(new NguoiDung
             {
-                hoTen = "Nguyen Phuoc Thinh",
+                hoTen = "Nguyễn Phước Thịnh",
                 email = "thinh@smartbus.vn",
                 soDienThoai = "0900000003",
                 cccd = "079000000003",
@@ -90,7 +90,7 @@ public static class DuLieuKhoiTao
             context.TuyenXes.Add(new TuyenXe
             {
                 maTuyen = "01",
-                tenTuyen = "Ben Thanh - BX Cho Lon",
+                tenTuyen = "Bến Thành - Bến xe Chợ Lớn",
                 gioBatDau = new TimeOnly(5, 0),
                 gioKetThuc = new TimeOnly(21, 0),
                 gianCachPhut = 10,
@@ -103,7 +103,7 @@ public static class DuLieuKhoiTao
             context.TuyenXes.Add(new TuyenXe
             {
                 maTuyen = "150",
-                tenTuyen = "BX Cho Lon - Tan Van",
+                tenTuyen = "Bến xe Chợ Lớn - Tân Vạn",
                 gioBatDau = new TimeOnly(4, 30),
                 gioKetThuc = new TimeOnly(20, 30),
                 gianCachPhut = 8,
@@ -115,10 +115,10 @@ public static class DuLieuKhoiTao
         // 3. Khoi tao Tram dung mau (idempotent theo maTram)
         var tramMau = new[]
         {
-            new TramDung { maTram = "BT01", tenTram = "Tram Trung Chuyen Ben Thanh", diaChi = "Duong Ham Nghi, Quan 1, TP.HCM", viDo = 10.771970m, kinhDo = 106.698330m, trangThai = true },
-            new TramDung { maTram = "DH01", tenTram = "Truong DH Tai Nguyen va Moi Truong", diaChi = "236 Le Van Sy, Quan Tan Binh, TP.HCM", viDo = 10.793750m, kinhDo = 106.666920m, trangThai = true },
-            new TramDung { maTram = "CL01", tenTram = "Ben Xe Cho Lon", diaChi = "Le Quang Sung, Quan 5, TP.HCM", viDo = 10.751650m, kinhDo = 106.654270m, trangThai = true },
-            new TramDung { maTram = "TV01", tenTram = "Ben Xe Tan Van", diaChi = "Xa Binh Thang, Di An, Binh Duong", viDo = 10.875410m, kinhDo = 106.812340m, trangThai = true }
+            new TramDung { maTram = "BT01", tenTram = "Trạm trung chuyển Bến Thành", diaChi = "Đường Hàm Nghi, Quận 1, TP.HCM", viDo = 10.771970m, kinhDo = 106.698330m, trangThai = true },
+            new TramDung { maTram = "DH01", tenTram = "Trường ĐH Tài nguyên và Môi trường", diaChi = "236 Lê Văn Sỹ, Quận Tân Bình, TP.HCM", viDo = 10.793750m, kinhDo = 106.666920m, trangThai = true },
+            new TramDung { maTram = "CL01", tenTram = "Bến xe Chợ Lớn", diaChi = "Lê Quang Sung, Quận 5, TP.HCM", viDo = 10.751650m, kinhDo = 106.654270m, trangThai = true },
+            new TramDung { maTram = "TV01", tenTram = "Bến xe Tân Vạn", diaChi = "Xã Bình Thắng, Dĩ An, Bình Dương", viDo = 10.875410m, kinhDo = 106.812340m, trangThai = true }
         };
 
         foreach (var tram in tramMau)
@@ -149,7 +149,7 @@ public static class DuLieuKhoiTao
                     tuyenXeId = tuyen01.id,
                     chieu = "Di",
                     phienBan = 1,
-                    tenLoTrinh = "Ben Thanh di Cho Lon",
+                    tenLoTrinh = "Bến Thành đi Chợ Lớn",
                     hieuLucTu = DateTime.UtcNow.AddDays(-30)
                 };
                 context.LoTrinhs.Add(ltDi);
@@ -171,7 +171,7 @@ public static class DuLieuKhoiTao
                     tuyenXeId = tuyen01.id,
                     chieu = "Ve",
                     phienBan = 1,
-                    tenLoTrinh = "Cho Lon di Ben Thanh",
+                    tenLoTrinh = "Chợ Lớn đi Bến Thành",
                     hieuLucTu = DateTime.UtcNow.AddDays(-30)
                 };
                 context.LoTrinhs.Add(ltVe);
@@ -196,7 +196,7 @@ public static class DuLieuKhoiTao
                     tuyenXeId = tuyen150.id,
                     chieu = "Di",
                     phienBan = 1,
-                    tenLoTrinh = "Cho Lon di Tan Van",
+                    tenLoTrinh = "Chợ Lớn đi Tân Vạn",
                     hieuLucTu = DateTime.UtcNow.AddDays(-30)
                 };
                 context.LoTrinhs.Add(lt150Di);
@@ -217,7 +217,7 @@ public static class DuLieuKhoiTao
                     tuyenXeId = tuyen150.id,
                     chieu = "Ve",
                     phienBan = 1,
-                    tenLoTrinh = "Tan Van di Cho Lon",
+                    tenLoTrinh = "Tân Vạn đi Chợ Lớn",
                     hieuLucTu = DateTime.UtcNow.AddDays(-30)
                 };
                 context.LoTrinhs.Add(lt150Ve);
@@ -266,7 +266,7 @@ public static class DuLieuKhoiTao
             context.ThietBiSoatVes.Add(new ThietBiSoatVe
             {
                 maThietBi = maThietBi1,
-                tenThietBi = "May Soat Ve Xe 51B-123.45",
+                tenThietBi = "Máy soát vé xe 51B-123.45",
                 mocThuHoiDaNhan = 0,
                 trangThai = true,
                 ngayDangKy = DateTime.UtcNow
@@ -315,14 +315,14 @@ public static class DuLieuKhoiTao
 
             context.GiaVes.AddRange(
                 // Toàn mạng
-                new GiaVe { maLoaiVe = "VeLuot", nhomDoiTuongId = 1, tuyenXeId = null, giaGoc = 7000, soTienMienGiam = 0, hieuLucTu = DateTime.UtcNow.AddDays(-30), canCuChinhSach = "Ve luot pho thong toan mang", trangThai = true },
-                new GiaVe { maLoaiVe = "VeLuot", nhomDoiTuongId = 2, tuyenXeId = null, giaGoc = 7000, soTienMienGiam = 4000, hieuLucTu = DateTime.UtcNow.AddDays(-30), canCuChinhSach = "Tro gia 4.000d cho hoc sinh sinh vien", trangThai = true },
-                new GiaVe { maLoaiVe = "VeLuot", nhomDoiTuongId = 3, tuyenXeId = null, giaGoc = 7000, soTienMienGiam = 7000, hieuLucTu = DateTime.UtcNow.AddDays(-30), canCuChinhSach = "Mien 100% cho nguoi cao tuoi tren 60 tuoi", trangThai = true },
-                new GiaVe { maLoaiVe = "VeThang", nhomDoiTuongId = 1, tuyenXeId = null, giaGoc = 300000, soTienMienGiam = 0, hieuLucTu = DateTime.UtcNow.AddDays(-30), canCuChinhSach = "Ve thang toan mang luoi", trangThai = true },
+                new GiaVe { maLoaiVe = "VeLuot", nhomDoiTuongId = 1, tuyenXeId = null, giaGoc = 7000, soTienMienGiam = 0, hieuLucTu = DateTime.UtcNow.AddDays(-30), canCuChinhSach = "Vé lượt phổ thông toàn mạng", trangThai = true },
+                new GiaVe { maLoaiVe = "VeLuot", nhomDoiTuongId = 2, tuyenXeId = null, giaGoc = 7000, soTienMienGiam = 4000, hieuLucTu = DateTime.UtcNow.AddDays(-30), canCuChinhSach = "Trợ giá 4.000đ cho học sinh, sinh viên", trangThai = true },
+                new GiaVe { maLoaiVe = "VeLuot", nhomDoiTuongId = 3, tuyenXeId = null, giaGoc = 7000, soTienMienGiam = 7000, hieuLucTu = DateTime.UtcNow.AddDays(-30), canCuChinhSach = "Miễn 100% cho người cao tuổi từ 60 tuổi trở lên", trangThai = true },
+                new GiaVe { maLoaiVe = "VeThang", nhomDoiTuongId = 1, tuyenXeId = null, giaGoc = 300000, soTienMienGiam = 0, hieuLucTu = DateTime.UtcNow.AddDays(-30), canCuChinhSach = "Vé tháng toàn mạng lưới", trangThai = true },
                 // Tuyến 01
-                new GiaVe { maLoaiVe = "VeThang", nhomDoiTuongId = 1, tuyenXeId = tuyen01Id, giaGoc = 200000, soTienMienGiam = 0, hieuLucTu = DateTime.UtcNow.AddDays(-30), canCuChinhSach = "Ve thang 1 tuyen (Tuyen 01)", trangThai = true },
+                new GiaVe { maLoaiVe = "VeThang", nhomDoiTuongId = 1, tuyenXeId = tuyen01Id, giaGoc = 200000, soTienMienGiam = 0, hieuLucTu = DateTime.UtcNow.AddDays(-30), canCuChinhSach = "Vé tháng 1 tuyến (Tuyến 01)", trangThai = true },
                 // Tuyến 150
-                new GiaVe { maLoaiVe = "VeThang", nhomDoiTuongId = 1, tuyenXeId = tuyen150Id, giaGoc = 200000, soTienMienGiam = 0, hieuLucTu = DateTime.UtcNow.AddDays(-30), canCuChinhSach = "Ve thang 1 tuyen (Tuyen 150)", trangThai = true }
+                new GiaVe { maLoaiVe = "VeThang", nhomDoiTuongId = 1, tuyenXeId = tuyen150Id, giaGoc = 200000, soTienMienGiam = 0, hieuLucTu = DateTime.UtcNow.AddDays(-30), canCuChinhSach = "Vé tháng 1 tuyến (Tuyến 150)", trangThai = true }
             );
             await context.SaveChangesAsync();
         }

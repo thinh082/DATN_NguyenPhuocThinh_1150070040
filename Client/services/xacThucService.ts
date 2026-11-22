@@ -51,9 +51,20 @@ export const nopHoSoUuTien = async (hoSo: {
   return response.data;
 };
 
-export type CapNhatCaNhan = { hoTen: string; email: string; soDienThoai: string; cccd: string };
+export type CapNhatCaNhan = { hoTen: string; email: string; soDienThoai: string; cccd: string; diaChi?: string | null; maTinhThanh?: number | null; maPhuongXa?: number | null };
 export type NhomUuTien = { id: number; tenNhom: string };
 export type HoSoUuTien = { id: number; tenNhom: string; trangThai: string; duongDanMinhChung?: string; hieuLucTu: string; hieuLucDen: string; lyDo?: string | null };
+export type DonViHanhChinh = { ma: number; ten: string };
+export type PhuongThucXacThuc = 'CCCD' | 'VNeID' | 'NganHang' | 'ViDienTu';
+export type ThongTinCaNhanChiTiet = ThongTinNguoiDung & {
+  diaChi?: string | null;
+  maTinhThanh?: number | null;
+  tenTinhThanh?: string | null;
+  maPhuongXa?: number | null;
+  tenPhuongXa?: string | null;
+  phuongThucXacThuc?: PhuongThucXacThuc | null;
+  ngayXacThuc?: string | null;
+};
 
 export interface KetQuaTaiLenMinhChung {
   maTep: string;
@@ -85,11 +96,23 @@ export async function taiLenMinhChung(file: { uri: string; name: string; type: s
   return response.data;
 }
 
-export async function capNhatThongTin(thongTin: CapNhatCaNhan): Promise<PhanHoiApi<ThongTinNguoiDung>> {
+export async function capNhatThongTin(thongTin: CapNhatCaNhan): Promise<PhanHoiApi<ThongTinCaNhanChiTiet>> {
   return (await apiClient.put('/api/XacThuc/thong-tin-ca-nhan', thongTin)).data;
 }
 export async function layNhomUuTien(): Promise<PhanHoiApi<NhomUuTien[]>> {
   return (await apiClient.get('/api/XacThuc/nhom-uu-tien')).data;
+}
+export async function layThongTinChiTiet(): Promise<PhanHoiApi<{ thongTin: ThongTinCaNhanChiTiet; nhomUuTien: unknown }>> {
+  return (await apiClient.get('/api/XacThuc/thong-tin-ca-nhan')).data;
+}
+export async function layTinhThanh(): Promise<PhanHoiApi<DonViHanhChinh[]>> {
+  return (await apiClient.get('/api/XacThuc/dia-chi/tinh-thanh')).data;
+}
+export async function layPhuongXa(maTinhThanh: number): Promise<PhanHoiApi<DonViHanhChinh[]>> {
+  return (await apiClient.get(`/api/XacThuc/dia-chi/phuong-xa?maTinhThanh=${maTinhThanh}`)).data;
+}
+export async function xacThucDinhDanh(phuongThuc: PhuongThucXacThuc, duongDanMinhChung?: string): Promise<PhanHoiApi<{ phuongThucXacThuc: PhuongThucXacThuc; ngayXacThuc: string }>> {
+  return (await apiClient.post('/api/XacThuc/xac-thuc-dinh-danh', { phuongThuc, duongDanMinhChung })).data;
 }
 export async function layHoSoCuaToi(): Promise<PhanHoiApi<HoSoUuTien[]>> {
   return (await apiClient.get('/api/XacThuc/ho-so-cua-toi')).data;
@@ -189,7 +212,7 @@ export async function khoiPhucPhienDangNhap(): Promise<KetQuaKhoiPhucPhien> {
     if (res.statusCode === 200) {
       await SecureStore.setItemAsync(KEY_LAST_ONLINE, new Date().toISOString());
       if (res.data) {
-        nguoiDung = { ...nguoiDung, ...res.data };
+        nguoiDung = { ...nguoiDung, ...(res.data.thongTin ?? res.data) };
         await SecureStore.setItemAsync(KEY_USER, JSON.stringify(nguoiDung));
       }
       return { trangThai: 'Online', nguoiDung, token };

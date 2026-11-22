@@ -10,7 +10,8 @@ namespace Server.Services;
 
 public interface IVeService
 {
-    Task<dynamic> layDanhSachBieuGia(int? tuyenXeId);
+    Task<dynamic> layDanhSachBieuGia(int? tuyenXeId, bool chiTinhPhi = false);
+    Task<dynamic> layHoacCapTheMienPhi(int nguoiDungId);
     Task<dynamic> taoDonHang(TaoDonHangDto thongTin);
     Task<dynamic> thanhToanDonHang(ThanhToanDonHangDto thongTin);
     Task<dynamic> thanhToanGiaLap(int userId, ThanhToanGiaLapDto thongTin);
@@ -54,9 +55,10 @@ public class VeService : IVeService
             x.cheDo, x.phuongThuc, x.maTuyen, x.tenTuyen, x.bienSo }).ToList();
     }
 
-    public async Task<dynamic> layDanhSachBieuGia(int? tuyenXeId)
+    public async Task<dynamic> layDanhSachBieuGia(int? tuyenXeId, bool chiTinhPhi = false)
     {
-        string cacheKey = $"smartbus:cache:bieu-gia:{tuyenXeId ?? 0}";
+        var ngay = ChinhSachTuyen.HomNay;
+        string cacheKey = $"smartbus:cache:bieu-gia:{tuyenXeId ?? 0}:{(chiTinhPhi ? "tinh-phi" : "tat-ca")}:{ngay:yyyyMMdd}";
         if (_cache != null)
         {
             var cached = await _cache.GetAsync<List<BieuGiaListItemDto>>(cacheKey);
@@ -66,6 +68,7 @@ public class VeService : IVeService
         var danhSach = await _context.GiaVes
             .AsNoTracking()
             .Where(x => x.trangThai && (tuyenXeId == null || x.tuyenXeId == null || x.tuyenXeId == tuyenXeId))
+            .Where(x => !chiTinhPhi || (x.maLoaiVe != ChinhSachTuyen.TheMienPhi && x.tuyenXe != null && !(x.tuyenXe.chinhSachMienPhi != null && x.tuyenXe.chinhSachMienPhi.trangThai && x.tuyenXe.chinhSachMienPhi.hieuLucTu <= ngay && x.tuyenXe.chinhSachMienPhi.hieuLucDen >= ngay)))
             .Include(x => x.maLoaiVeNavigation)
             .Include(x => x.nhomDoiTuong)
             .Include(x => x.tuyenXe)
@@ -77,7 +80,8 @@ public class VeService : IVeService
                 nhomDoiTuongId = x.nhomDoiTuongId,
                 tenNhomDoiTuong = x.nhomDoiTuong.tenNhom,
                 tuyenXeId = x.tuyenXeId,
-                tenTuyen = x.tuyenXe != null ? x.tuyenXe.tenTuyen : "Toan mang luoi",
+                tenTuyen = x.tuyenXe != null ? x.tuyenXe.tenTuyen : "Toàn mạng lưới",
+                maTuyen = x.tuyenXe != null ? x.tuyenXe.maTuyen : null,
                 giaGoc = x.giaGoc,
                 soTienMienGiam = x.soTienMienGiam,
                 giaThucThu = x.giaGoc - x.soTienMienGiam,
@@ -143,6 +147,7 @@ public class VeService : IVeService
             .FirstOrDefaultAsync(x => x.id == thongTin.giaVeId && x.trangThai);
 
         if (giaVe == null) throw new ArgumentException("Không tìm thấy biểu giá vé hợp lệ hoặc biểu giá đã ngừng hoạt động.");
+        if (giaVe.maLoaiVe == ChinhSachTuyen.TheMienPhi) throw new ArgumentException("Thẻ đi xe miễn phí được cấp tự động sau khi xác thực định danh, không cần mua.");
 
         var nguoiDung = await _context.NguoiDungs.FindAsync(thongTin.nguoiDungId);
         if (nguoiDung == null) throw new KeyNotFoundException("Không tìm thấy thông tin người dùng.");
@@ -230,21 +235,6 @@ public class VeService : IVeService
 
         if (phaiThanhToan == 0)
         {
-            var thanhToan0Dong = new ThanhToan
-            {
-                maYeuCau = Guid.NewGuid(),
-                donHangId = donHang.id,
-                soTien = 0,
-                donViTien = "VND",
-                congThanhToan = "MienPhi",
-                maGiaoDichCong = "FREE_" + donHang.maDonHang.ToString("N")[..12],
-                trangThai = "ThanhCong",
-                ngayTao = DateTime.UtcNow,
-                thanhCongLuc = DateTime.UtcNow
-            };
-            await _context.ThanhToans.AddAsync(thanhToan0Dong);
-            await _context.SaveChangesAsync();
-
             await phatHanhVe(donHang.id);
             await transaction.CommitAsync();
 
@@ -461,14 +451,14 @@ public class VeService : IVeService
                 .ThenInclude(ct => ct.giaVe)
             .FirstOrDefaultAsync(x => x.id == donHangId);
 
-        if (donHang == null) throw new Exception("Khong tim thay don hang");
+        if (donHang == null) throw new Exception("Không tìm thấy đơn hàng");
 
         var khoaKySo = await _context.KhoaKySos
             .Where(x => x.trangThai == "DangDung")
             .OrderByDescending(x => x.id)
             .FirstOrDefaultAsync();
 
-        if (khoaKySo == null) throw new Exception("He thong chua co khoa ky so hop le");
+        if (khoaKySo == null) throw new Exception("Hệ thống chưa có khóa ký số hợp lệ");
 
         using var ecdsaPrivate = _signingKeys.Open(khoaKySo.khoaCongKhaiPem);
 
@@ -483,7 +473,9 @@ public class VeService : IVeService
                 var laVeThang = chiTiet.giaVe.maLoaiVe == "VeThang";
 
                 var hieuLucTu = DateTime.UtcNow;
-                var hetHanLuc = laVeThang ? DateTime.UtcNow.AddDays(30) : DateTime.UtcNow.AddHours(24);
+                var hetHanLuc = chiTiet.giaVe.maLoaiVe == ChinhSachTuyen.TheMienPhi
+                    ? chiTiet.giaVe.hieuLucDen ?? DateTime.UtcNow.AddDays(30)
+                    : laVeThang ? DateTime.UtcNow.AddDays(30) : DateTime.UtcNow.AddHours(24);
 
                 var thongTinKy = JsonSerializer.Serialize(new
                 {
@@ -536,6 +528,40 @@ public class VeService : IVeService
         return new { soLuongVeDaCap = danhSachVe.Count };
     }
 
+    public async Task<dynamic> layHoacCapTheMienPhi(int nguoiDungId)
+    {
+        var nguoiDung = await _context.NguoiDungs.FindAsync(nguoiDungId) ?? throw new KeyNotFoundException("Không tìm thấy thông tin người dùng.");
+        if (string.IsNullOrEmpty(nguoiDung.phuongThucXacThuc))
+            throw new UnauthorizedAccessException("Vui lòng xác thực định danh để sử dụng 134 tuyến xe buýt miễn phí.");
+
+        var now = DateTime.UtcNow;
+        var daCoThe = await _context.Ves.AnyAsync(x => x.nguoiDungId == nguoiDungId && x.maLoaiVe == ChinhSachTuyen.TheMienPhi && x.trangThai == "HoatDong" && x.hetHanLuc > now);
+        if (!daCoThe)
+        {
+            var giaVe = await _context.GiaVes.FirstOrDefaultAsync(x => x.maLoaiVe == ChinhSachTuyen.TheMienPhi && x.trangThai && x.hieuLucTu <= now && (x.hieuLucDen == null || x.hieuLucDen > now))
+                ?? throw new InvalidOperationException("Chính sách miễn phí 134 tuyến hiện không còn hiệu lực.");
+            var donHang = new DonHang
+            {
+                maDonHang = Guid.NewGuid(),
+                nguoiDungId = nguoiDungId,
+                maYeuCau = Guid.NewGuid(),
+                tongGiaGoc = 0,
+                tongMienGiam = 0,
+                tongThanhToan = 0,
+                trangThai = "MienPhi",
+                ngayTao = now,
+                hetHanLuc = now.AddMinutes(30)
+            };
+            donHang.ChiTietDonHangs.Add(new ChiTietDonHang { giaVeId = giaVe.id, soLuong = 1, donGiaGoc = 0, mienGiamMoiVe = 0 });
+            _context.DonHangs.Add(donHang);
+            await _context.SaveChangesAsync();
+            await phatHanhVe(donHang.id);
+        }
+
+        var danhSach = (IEnumerable<dynamic>)await layDanhSachVeNguoiDung(nguoiDungId);
+        return danhSach.First(x => x.maLoaiVe == ChinhSachTuyen.TheMienPhi);
+    }
+
     public async Task<dynamic> layDanhSachVeNguoiDung(int nguoiDungId)
     {
         var now = DateTime.UtcNow;
@@ -565,7 +591,8 @@ public class VeService : IVeService
                 v.maVe,
                 tenLoaiVe = v.maLoaiVeNavigation.tenLoai,
                 tenNhomDoiTuong = v.nhomDoiTuong.tenNhom,
-                tenTuyen = v.tuyenXe != null ? v.tuyenXe.tenTuyen : "Toan mang luoi",
+                maLoaiVe = v.maLoaiVe,
+                tenTuyen = v.maLoaiVe == ChinhSachTuyen.TheMienPhi ? "134 tuyến miễn phí (NQ 09/2026)" : v.tuyenXe != null ? v.tuyenXe.tenTuyen : "Toàn mạng lưới",
                 maTuyen = v.tuyenXe != null ? v.tuyenXe.maTuyen : "ALL",
                 v.hieuLucTu,
                 v.hetHanLuc,
@@ -606,7 +633,8 @@ public class VeService : IVeService
             v.maVe,
             tenLoaiVe = v.maLoaiVeNavigation.tenLoai,
             tenNhomDoiTuong = v.nhomDoiTuong.tenNhom,
-            tenTuyen = v.tuyenXe != null ? v.tuyenXe.tenTuyen : "Toan mang luoi",
+            maLoaiVe = v.maLoaiVe,
+            tenTuyen = v.maLoaiVe == ChinhSachTuyen.TheMienPhi ? "134 tuyến miễn phí (NQ 09/2026)" : v.tuyenXe != null ? v.tuyenXe.tenTuyen : "Toàn mạng lưới",
             maTuyen = v.tuyenXe != null ? v.tuyenXe.maTuyen : "ALL",
             v.hieuLucTu,
             v.hetHanLuc,

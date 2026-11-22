@@ -7,6 +7,7 @@ public class DongBoSuKienOfflineDto
     public string qr { get; set; } = "";
     public DateTime thoiDiemQuet { get; set; }
     public bool chapNhanTaiThietBi { get; set; }
+    public string? maLyDoTaiThietBi { get; set; }
 }
 
 public class QuetVeRequestDto

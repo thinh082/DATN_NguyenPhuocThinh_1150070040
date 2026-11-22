@@ -32,7 +32,7 @@ public class SoatVeService : ISoatVeService
     public async Task<dynamic> layGoiDuLieuNgoaiTuyen(int thietBiSoatVeId)
     {
         var thietBi = await _context.ThietBiSoatVes.FindAsync(thietBiSoatVeId);
-        if (thietBi == null) throw new Exception("Khong tim thay thiet bi soat ve");
+        if (thietBi == null) throw new Exception("Không tìm thấy thiết bị soát vé");
 
         var khoaKySo = await _context.KhoaKySos
             .Where(x => x.trangThai == "DangDung")
@@ -120,13 +120,13 @@ public class SoatVeService : ISoatVeService
 
         if (ve.trangThai != "HoatDong")
         {
-            return await GhiNhanQuetThatBai(thongTin, "VE_DA_BI_KHOA", $"Vé đã bị {ve.trangThai}");
+            return await GhiNhanQuetThatBai(thongTin, "VE_DA_BI_KHOA", $"Vé đã bị {ve.trangThai}", ve);
         }
 
         var now = DateTime.UtcNow;
         if (now < ve.hieuLucTu || now >= ve.hetHanLuc)
         {
-            return await GhiNhanQuetThatBai(thongTin, "VE_HET_HAN", "Vé đã hết hạn sử dụng");
+            return await GhiNhanQuetThatBai(thongTin, "VE_HET_HAN", "Vé đã hết hạn sử dụng", ve);
         }
 
         var session = await _context.PhienSoatVes
@@ -134,13 +134,17 @@ public class SoatVeService : ISoatVeService
             .FirstOrDefaultAsync(p => p.id == thongTin.phienSoatVeId);
         if (session != null && ve.tuyenXeId != null && ve.tuyenXeId != session.chuyenXe.loTrinh.tuyenXeId)
         {
-            return await GhiNhanQuetThatBai(thongTin, "SAI_TUYEN", "Vé không áp dụng cho tuyến xe này");
+            return await GhiNhanQuetThatBai(thongTin, "SAI_TUYEN", "Vé không áp dụng cho tuyến xe này", ve);
+        }
+        if (session != null && ve.maLoaiVe == ChinhSachTuyen.TheMienPhi && !await ChinhSachTuyen.TuyenMienPhiAsync(_context, session.chuyenXe.loTrinh.tuyenXeId))
+        {
+            return await GhiNhanQuetThatBai(thongTin, "SAI_PHAM_VI", "Thẻ miễn phí không áp dụng cho tuyến tính phí", ve);
         }
 
         bool chuKyHopLe = _matMaService.XacThucChuKy(ve.duLieuDaKy, chuKyBytes, ve.khoaKySo.khoaCongKhaiPem);
         if (!chuKyHopLe)
         {
-            return await GhiNhanQuetThatBai(thongTin, "CHU_KY_KHONG_KHOP", "Chữ ký mật mã không hợp lệ (nghi vấn vé giả)");
+            return await GhiNhanQuetThatBai(thongTin, "CHU_KY_KHONG_KHOP", "Chữ ký mật mã không hợp lệ (nghi vấn vé giả)", ve);
         }
 
         var biMat = _matMaService.GiaiMaAes(ve.biMatTotpMaHoa);
@@ -159,7 +163,7 @@ public class SoatVeService : ISoatVeService
 
         if (matchedStep == null)
         {
-            return await GhiNhanQuetThatBai(thongTin, "MA_TOTP_HET_HAN", "Mã QR đã hết hiệu lực hoặc chụp ảnh chia sẻ lại (Anti-Replay)");
+            return await GhiNhanQuetThatBai(thongTin, "MA_TOTP_HET_HAN", "Mã QR đã hết hiệu lực hoặc chụp ảnh chia sẻ lại (Anti-Replay)", ve);
         }
 
         if (ve.maLoaiVe == "VeLuot")
@@ -168,6 +172,13 @@ public class SoatVeService : ISoatVeService
             if (daCoLuot)
             {
                 return await GhiNhanGianLan(thongTin, ve, matchedStep.Value, "QUET_TRUNG", "Vé lượt này đã được sử dụng trước đó");
+            }
+        }
+        else if (ve.maLoaiVe == ChinhSachTuyen.TheMienPhi && session != null)
+        {
+            if (await ChinhSachTuyen.DaCoLuotTrongChuyenAsync(_context, ve.id, session.chuyenXeId))
+            {
+                return await GhiNhanGianLan(thongTin, ve, matchedStep.Value, "QUET_TRUNG", "Thẻ miễn phí đã được ghi nhận lượt đi trên chuyến xe này");
             }
         }
         else
@@ -326,18 +337,27 @@ public class SoatVeService : ISoatVeService
             .Distinct()
             .ToListAsync();
 
+        var tuyenMienPhi = await ChinhSachTuyen.TuyenMienPhiAsync(_context, routeId);
+        var usedFreeCardsThisTrip = await _context.LuotDis.AsNoTracking()
+            .Where(l => ticketIds.Contains(l.veId) && l.trangThai == "HopLe" && l.NhatKyQuetVe.PhienSoatVe.chuyenXeId == session.chuyenXeId)
+            .Select(l => l.veId)
+            .Distinct()
+            .ToListAsync();
+
         var danhSachVe = tickets.Select(v =>
         {
-            var dungTuyen = v.tuyenXeId == null || v.tuyenXeId == routeId;
+            var laTheMienPhi = v.maLoaiVe == ChinhSachTuyen.TheMienPhi;
+            var dungTuyen = (v.tuyenXeId == null || v.tuyenXeId == routeId) && (!laTheMienPhi || tuyenMienPhi);
             var daDung = v.maLoaiVe == "VeLuot" && usedSingleTickets.Contains(v.id);
-            var trungCuaSo = v.maLoaiVe == "VeThang" && usedMonthTicketsThisStep.Contains(v.id);
+            var trungCuaSo = (v.maLoaiVe == "VeThang" && usedMonthTicketsThisStep.Contains(v.id))
+                || (laTheMienPhi && usedFreeCardsThisTrip.Contains(v.id));
             var coTheSuDung = v.trangThai == "HoatDong" && dungTuyen && !daDung && !trungCuaSo;
 
             string? lyDo = null;
             if (v.trangThai != "HoatDong") lyDo = $"Vé đang ở trạng thái {v.trangThai}";
-            else if (!dungTuyen) lyDo = "Vé không áp dụng cho tuyến xe này";
+            else if (!dungTuyen) lyDo = laTheMienPhi ? "Thẻ miễn phí không áp dụng cho tuyến tính phí" : "Vé không áp dụng cho tuyến xe này";
             else if (daDung) lyDo = "Vé lượt này đã được sử dụng trước đó";
-            else if (trungCuaSo) lyDo = "Vé tháng vừa được sử dụng trong vòng 30 giây qua";
+            else if (trungCuaSo) lyDo = laTheMienPhi ? "Thẻ miễn phí đã được ghi nhận lượt đi trên chuyến xe này" : "Vé tháng vừa được sử dụng trong vòng 30 giây qua";
 
             return new
             {
@@ -431,6 +451,10 @@ public class SoatVeService : ISoatVeService
         {
             return await GhiNhanTuChoi(session, thongTin, ve, "SAI_TUYEN", "Vé không áp dụng cho tuyến xe này.", transaction);
         }
+        if (ve.maLoaiVe == ChinhSachTuyen.TheMienPhi && !await ChinhSachTuyen.TuyenMienPhiAsync(_context, routeId))
+        {
+            return await GhiNhanTuChoi(session, thongTin, ve, "SAI_PHAM_VI", "Thẻ miễn phí không áp dụng cho tuyến tính phí.", transaction);
+        }
 
         // Kiểm tra trùng:
         if (ve.maLoaiVe == "VeLuot")
@@ -439,6 +463,13 @@ public class SoatVeService : ISoatVeService
             if (daSuDung)
             {
                 return await GhiNhanTuChoi(session, thongTin, ve, "QUET_TRUNG", "Vé lượt này đã được sử dụng trước đó.", transaction, taoCanhBao: true);
+            }
+        }
+        else if (ve.maLoaiVe == ChinhSachTuyen.TheMienPhi)
+        {
+            if (await ChinhSachTuyen.DaCoLuotTrongChuyenAsync(_context, ve.id, session.chuyenXeId))
+            {
+                return await GhiNhanTuChoi(session, thongTin, ve, "QUET_TRUNG", "Thẻ miễn phí đã được ghi nhận lượt đi trên chuyến xe này.", transaction, taoCanhBao: true);
             }
         }
         else if (ve.maLoaiVe == "VeThang")
@@ -669,8 +700,11 @@ public class SoatVeService : ISoatVeService
         return danhSach;
     }
 
-    private async Task<dynamic> GhiNhanQuetThatBai(QuetVeRequestDto thongTin, string maLyDo, string thongBaoLoi)
+    private async Task<dynamic> GhiNhanQuetThatBai(QuetVeRequestDto thongTin, string maLyDo, string thongBaoLoi, Ve? ve = null)
     {
+        if (ve == null)
+            return new { hopLe = false, amThanh = "alarm_error.mp3", maLyDo, thongBao = thongBaoLoi };
+
         var maxStt = await _context.NhatKyQuetVes
             .Where(x => x.thietBiSoatVeId == thongTin.thietBiSoatVeId)
             .MaxAsync(x => (long?)x.soThuTuThietBi) ?? 0;
@@ -682,6 +716,8 @@ public class SoatVeService : ISoatVeService
             thietBiSoatVeId = thongTin.thietBiSoatVeId,
             phienSoatVeId = thongTin.phienSoatVeId,
             soThuTuThietBi = soThuTu,
+            veId = ve?.id,
+            maVeDocDuoc = ve?.maVe.ToString(),
             phuongThuc = "Qr",
             cheDo = thongTin.cheDo ?? "Online",
             ketQuaTaiThietBi = "TuChoi",

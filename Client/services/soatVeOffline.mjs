@@ -22,11 +22,12 @@ export function xacThucNgoaiTuyen(qr, goi, daQuet, now = Date.now()) {
     const start = Date.parse(signed.tu), end = Date.parse(signed.den);
     if (!Number.isFinite(start) || !Number.isFinite(end) || now < start || now >= end) return fail('VE_HET_HAN');
     if (signed.tx != null && signed.tx !== goi.tuyenXeId) return fail('SAI_TUYEN');
+    if (signed.lv === 'TheMienPhi' && goi.tuyenMienPhi === false) return fail('SAI_PHAM_VI');
     const current = Math.floor(now / 30000);
     const secret = toByteArray(ve.biMatTotp);
     const matched = [current, current - 1, current + 1].find(step => step >= 0 && generateSync({ secret, algorithm: 'sha256', digits: 8, period: 30, epoch: step * 30 }) === parts[3]);
     if (matched === undefined) return fail('SAI_TOTP');
-    if (daQuet.some(x => x.maVe?.toLowerCase() === parts[2].toLowerCase() && (signed.lv === 'VeLuot' || x.buocThoiGian === matched))) return fail('DA_SU_DUNG');
+    if (daQuet.some(x => x.maVe?.toLowerCase() === parts[2].toLowerCase() && (signed.lv === 'VeLuot' || (signed.lv === 'TheMienPhi' ? !!x.cungChuyen : x.buocThoiGian === matched)))) return fail('DA_SU_DUNG');
     return { hopLe: true, maLyDo: 'HOP_LE', maVe: parts[2].toLowerCase(), buocThoiGian: matched, maLoaiVe: signed.lv };
   } catch { return fail('QR_KHONG_HOP_LE'); }
 }

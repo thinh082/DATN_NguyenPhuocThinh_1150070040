@@ -45,7 +45,7 @@ export async function quetVaLuu(db: SQLite.SQLiteDatabase, qr: string): Promise<
     if (!row) throw new Error('Hãy tải gói dữ liệu trước khi quét.');
     const goi: GoiKiemTra = JSON.parse(row.data);
     if (!goi.packageId) throw new Error('Gói cũ chưa hỗ trợ đồng bộ. Hãy tải lại gói.');
-    const prior = await db.getAllAsync<LuotDaQuet>('SELECT ticket_id AS maVe, time_step AS buocThoiGian FROM events WHERE accepted=1');
+    const prior = await db.getAllAsync<LuotDaQuet>('SELECT ticket_id AS maVe, time_step AS buocThoiGian, (session_id = ?) AS cungChuyen FROM events WHERE accepted=1', goi.phienId);
     result = xacThucNgoaiTuyen(qr, goi, [...goi.daQuet, ...prior]);
     await db.runAsync('INSERT INTO events (event_id,ticket_id,time_step,qr,reason,accepted,scanned_at,session_id,package_id) VALUES (?,?,?,?,?,?,?,?,?)',
       Crypto.randomUUID(), result.maVe ?? null, result.buocThoiGian ?? null, qr.slice(0, 4096), result.maLyDo, result.hopLe ? 1 : 0, new Date().toISOString(), goi.phienId, goi.packageId);
@@ -57,10 +57,10 @@ export async function quetVaLuu(db: SQLite.SQLiteDatabase, qr: string): Promise<
   return result;
 }
 
-type PendingEvent = { event_id: string; package_id: string | null; qr: string; scanned_at: string; accepted: number };
+type PendingEvent = { event_id: string; package_id: string | null; qr: string; scanned_at: string; accepted: number; reason: string };
 
 export async function dongBoNhatKy(db: SQLite.SQLiteDatabase): Promise<{ sent: number; legacy: number; rejected: number; warnings: number; pendingErrors: number }> {
-  const events = await db.getAllAsync<PendingEvent>('SELECT event_id, package_id, qr, scanned_at, accepted FROM events WHERE synced=0 ORDER BY rowid');
+  const events = await db.getAllAsync<PendingEvent>('SELECT event_id, package_id, qr, scanned_at, accepted, reason FROM events WHERE synced=0 ORDER BY rowid');
   let sent = 0, legacy = 0, rejected = 0, warnings = 0, pendingErrors = 0;
   for (const event of events) {
     if (!event.package_id) { legacy++; continue; }
@@ -68,7 +68,7 @@ export async function dongBoNhatKy(db: SQLite.SQLiteDatabase): Promise<{ sent: n
     try {
       response = await apiClient.post('/api/SoatVe/dong-bo-su-kien', {
         maSuKien: event.event_id, goiId: event.package_id, qr: event.qr,
-        thoiDiemQuet: event.scanned_at, chapNhanTaiThietBi: event.accepted === 1,
+        thoiDiemQuet: event.scanned_at, chapNhanTaiThietBi: event.accepted === 1, maLyDoTaiThietBi: event.reason,
       });
     } catch (error: any) {
       if (error.statusCode === 400 || error.statusCode === 409) {

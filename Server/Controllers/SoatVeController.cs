@@ -41,11 +41,21 @@ public class SoatVeController : ControllerBase
     [HttpGet("chuan-bi")]
     public async Task<IActionResult> chuanBi()
     {
+        var ngay = ChinhSachTuyen.HomNay;
         var devices = await _db.ThietBiSoatVes.AsNoTracking().Where(x => x.trangThai)
             .Select(x => new { x.id, x.tenThietBi }).ToListAsync();
         var trips = await _db.ChuyenXes.AsNoTracking().Where(x => x.trangThai == "DangChay")
-            .Select(x => new { x.id, tuyenXeId = x.loTrinh.tuyenXeId, tenTuyen = x.loTrinh.tuyenXe.tenTuyen, bienSo = x.xeBuyt.bienSo }).ToListAsync();
-        return Ok(KetQuaPhanHoi.ThanhCong(new { thietBis = devices, chuyenXes = trips }, "Du lieu chuan bi"));
+            .Select(x => new
+            {
+                x.id,
+                tuyenXeId = x.loTrinh.tuyenXeId,
+                maTuyen = x.loTrinh.tuyenXe.maTuyen,
+                tenTuyen = x.loTrinh.tuyenXe.tenTuyen,
+                bienSo = x.xeBuyt.bienSo,
+                mienPhi = x.loTrinh.tuyenXe.chinhSachMienPhi != null && x.loTrinh.tuyenXe.chinhSachMienPhi.trangThai
+                    && x.loTrinh.tuyenXe.chinhSachMienPhi.hieuLucTu <= ngay && x.loTrinh.tuyenXe.chinhSachMienPhi.hieuLucDen >= ngay
+            }).ToListAsync();
+        return Ok(KetQuaPhanHoi.ThanhCong(new { thietBis = devices, chuyenXes = trips }, "Dữ liệu chuẩn bị phiên soát vé"));
     }
 
     [HttpGet("goi-kiem-tra")]
@@ -61,7 +71,8 @@ public class SoatVeController : ControllerBase
             .Where(x => x.hetHanLuc > now && (x.tuyenXeId == null || x.tuyenXeId == routeId)).ToListAsync();
         var ticketIds = tickets.Select(x => x.id).ToArray();
         var used = await _db.LuotDis.AsNoTracking().Where(x => ticketIds.Contains(x.veId) && x.trangThai == "HopLe")
-            .Select(x => new { maVe = x.Ve.maVe, x.buocThoiGian }).ToListAsync();
+            .Select(x => new { maVe = x.Ve.maVe, x.buocThoiGian, cungChuyen = x.NhatKyQuetVe.PhienSoatVe.chuyenXeId == session.chuyenXeId }).ToListAsync();
+        var tuyenMienPhi = await ChinhSachTuyen.TuyenMienPhiAsync(_db, routeId);
         var data = tickets.Select(x =>
         {
             using var key = ECDsa.Create();
@@ -74,8 +85,8 @@ public class SoatVeController : ControllerBase
         _db.GoiSoatVes.Add(package);
         await _db.SaveChangesAsync();
         Response.Headers.CacheControl = "no-store";
-        return Ok(KetQuaPhanHoi.ThanhCong(new { phienId, packageId = package.id, thietBiId = session.thietBiSoatVeId, tuyenXeId = routeId,
-            hetHanLuc = package.hetHanLuc.ToString("O"), ves = data, daQuet = used }, "Goi kiem tra ngoai tuyen"));
+        return Ok(KetQuaPhanHoi.ThanhCong(new { phienId, packageId = package.id, thietBiId = session.thietBiSoatVeId, tuyenXeId = routeId, tuyenMienPhi,
+            hetHanLuc = package.hetHanLuc.ToString("O"), ves = data, daQuet = used }, "Gói kiểm tra ngoại tuyến"));
     }
 
     [HttpGet("goi-du-lieu-ngoai-tuyen")]
@@ -84,11 +95,11 @@ public class SoatVeController : ControllerBase
         try
         {
             var duLieu = await _soatVeService.layGoiDuLieuNgoaiTuyen(thietBiSoatVeId);
-            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lay goi du lieu ngoai tuyen thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lấy gói dữ liệu ngoại tuyến thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -99,7 +110,7 @@ public class SoatVeController : ControllerBase
         {
             if (string.IsNullOrWhiteSpace(thongTin.maQrPayload))
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Payload ma QR khong duoc de trong", 400));
+                return Ok(KetQuaPhanHoi.ThatBai("Dữ liệu mã QR không được để trống", 400));
             }
             var userId = int.Parse(User.FindFirst("id")!.Value);
             if (!await _db.PhienSoatVes.AnyAsync(x => x.id == thongTin.phienSoatVeId && x.nhanVienId == userId && x.thietBiSoatVeId == thongTin.thietBiSoatVeId && x.ketThucLuc == null)) return NotFound();
@@ -109,11 +120,11 @@ public class SoatVeController : ControllerBase
             await _db.Database.ExecuteSqlRawAsync("DECLARE @result int; EXEC @result = sys.sp_getapplock @Resource = 'SmartBus:OfflineSync', @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000; IF @result < 0 THROW 51000, 'Cannot acquire synchronization lock', 1;");
             var ketQua = await _soatVeService.xacThucVe(thongTin);
             await transaction.CommitAsync();
-            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Xu ly xac thuc ve hoan tat"));
+            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Xử lý xác thực vé hoàn tất"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -178,7 +189,7 @@ public class SoatVeController : ControllerBase
     [HttpPost("dong-bo-lo")]
     public IActionResult dongBoLoNhatKy([FromBody] DongBoLoDto thongTin)
     {
-        return StatusCode(410, KetQuaPhanHoi.ThatBai("API dong bo cu da ngung do chua xac minh QR.", 410));
+        return StatusCode(410, KetQuaPhanHoi.ThatBai("API đồng bộ cũ đã ngừng do chưa xác minh QR.", 410));
     }
 
     [HttpGet("canh-bao-gian-lan")]
@@ -187,11 +198,11 @@ public class SoatVeController : ControllerBase
         try
         {
             var duLieu = await _soatVeService.layDanhSachCanhBaoGianLan();
-            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lay danh sach canh bao gian lan thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lấy danh sách cảnh báo gian lận thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 }

@@ -39,6 +39,7 @@ public class BieuGiaListItemDto
     public string tenNhomDoiTuong { get; set; } = string.Empty;
     public int? tuyenXeId { get; set; }
     public string tenTuyen { get; set; } = string.Empty;
+    public string? maTuyen { get; set; }
     public decimal giaGoc { get; set; }
     public decimal soTienMienGiam { get; set; }
     public decimal giaThucThu { get; set; }

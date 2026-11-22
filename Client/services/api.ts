@@ -47,7 +47,7 @@ apiClient.interceptors.response.use(
     const loiPhanHoi: PhanHoiApi = {
       data: null,
       statusCode: error.response?.status || 0,
-      message: error.response?.data?.message || error.message || 'Loi ket noi den may chu',
+      message: error.response?.data?.message || error.message || 'Lỗi kết nối đến máy chủ',
     };
     return Promise.reject(loiPhanHoi);
   }

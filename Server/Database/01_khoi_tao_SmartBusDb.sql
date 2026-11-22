@@ -179,7 +179,7 @@ BEGIN TRY
         maLoai varchar(20) CONSTRAINT PK_LoaiVe PRIMARY KEY,
         tenLoai nvarchar(100) NOT NULL,
         trangThai bit NOT NULL DEFAULT 1,
-        CONSTRAINT CK_LoaiVe_ma CHECK (maLoai IN ('VeLuot','VeThang'))
+        CONSTRAINT CK_LoaiVe_ma CHECK (maLoai IN ('VeLuot','VeThang','TheMienPhi'))
     );
 
     CREATE TABLE dbo.GiaVe (

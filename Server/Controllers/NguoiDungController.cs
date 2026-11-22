@@ -24,11 +24,11 @@ public class NguoiDungController : ControllerBase
         try
         {
             var duLieu = await _nguoiDungService.layDanhSachNguoiDung();
-            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lay danh sach nguoi dung thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lấy danh sách người dùng thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -40,14 +40,14 @@ public class NguoiDungController : ControllerBase
             var duLieu = await _nguoiDungService.layChiTietNguoiDung(id);
             if (duLieu == null)
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Khong tim thay nguoi dung", 404));
+                return Ok(KetQuaPhanHoi.ThatBai("Không tìm thấy người dùng", 404));
             }
 
-            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lay chi tiet nguoi dung thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lấy chi tiết người dùng thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -58,20 +58,20 @@ public class NguoiDungController : ControllerBase
         {
             if (thongTin == null)
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Du lieu truyen vao khong hop le", 400));
+                return Ok(KetQuaPhanHoi.ThatBai("Dữ liệu truyền vào không hợp lệ", 400));
             }
 
             var ketQua = await _nguoiDungService.luuNguoiDung(thongTin);
             if (ketQua == null)
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Khong tim thay nguoi dung de cap nhat", 404));
+                return Ok(KetQuaPhanHoi.ThatBai("Không tìm thấy người dùng để cập nhật", 404));
             }
 
-            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Luu nguoi dung thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Lưu người dùng thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -86,15 +86,15 @@ public class NguoiDungController : ControllerBase
             var ketQua = await _nguoiDungService.capNhatTrangThai(id, trangThai);
             if (!ketQua)
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Khong tim thay nguoi dung", 404));
+                return Ok(KetQuaPhanHoi.ThatBai("Không tìm thấy người dùng", 404));
             }
 
-            string thongBao = trangThai ? "Mo khoa tai khoan thanh cong" : "Khoa tai khoan thanh cong";
+            string thongBao = trangThai ? "Mở khóa tài khoản thành công" : "Khóa tài khoản thành công";
             return Ok(KetQuaPhanHoi.ThanhCong(new { id, trangThai }, thongBao));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 }

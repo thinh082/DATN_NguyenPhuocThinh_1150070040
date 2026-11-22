@@ -26,11 +26,11 @@ public class BaoCaoController : ControllerBase
             var ketThuc = denNgay ?? DateTime.UtcNow;
 
             var duLieu = await _baoCaoService.thongKeLuotDiTheoTuyen(batDau, ketThuc);
-            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Thong ke luot di theo tuyen thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Thống kê lượt đi theo tuyến thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -43,11 +43,11 @@ public class BaoCaoController : ControllerBase
             var ketThuc = denNgay ?? DateTime.UtcNow;
 
             var duLieu = await _baoCaoService.thongKeTheoNhomDoiTuong(batDau, ketThuc);
-            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Thong ke theo nhom doi tuong thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Thống kê theo nhóm đối tượng thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -60,11 +60,11 @@ public class BaoCaoController : ControllerBase
             var ketThuc = denNgay ?? DateTime.UtcNow;
 
             var duLieu = await _baoCaoService.thongKeDoanhThu(batDau, ketThuc);
-            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Thong ke doanh thu thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Thống kê doanh thu thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 }

@@ -13,10 +13,12 @@ public record OfflineSyncResult(Guid maSuKien, string trangThai, string maLyDo);
 
 public sealed class OfflineSyncService(SmartBusDbContext db, OfflineQrValidationService verifier)
 {
+    private static readonly HashSet<string> LyDoTuChoiTaiThietBi = ["DA_SU_DUNG", "GOI_HET_HAN", "KHONG_CO_DU_LIEU", "QR_KHONG_HOP_LE", "SAI_CHU_KY", "SAI_DU_LIEU", "SAI_TOTP", "SAI_TUYEN", "VE_BI_KHOA", "VE_HET_HAN", "SAI_PHAM_VI"];
+
     public async Task<OfflineSyncResult> XuLy(DongBoSuKienOfflineDto item, int userId)
     {
         if (item.maSuKien == Guid.Empty || item.goiId == Guid.Empty || item.qr.Length > 4096)
-            throw new ArgumentException("Du lieu su kien khong hop le.");
+            throw new ArgumentException("Dữ liệu sự kiện không hợp lệ.");
         var scanTime = item.thoiDiemQuet.ToUniversalTime();
         var canonical = $"{item.goiId:D}|{scanTime.Ticks}|{item.chapNhanTaiThietBi}|{item.qr}";
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
@@ -25,20 +27,20 @@ public sealed class OfflineSyncService(SmartBusDbContext db, OfflineQrValidation
         // Unique database indexes remain the final protection against other writers.
         await db.Database.ExecuteSqlRawAsync("DECLARE @result int; EXEC @result = sys.sp_getapplock @Resource = 'SmartBus:OfflineSync', @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000; IF @result < 0 THROW 51000, 'Cannot acquire offline synchronization lock', 1;");
         var package = await db.GoiSoatVes.SingleOrDefaultAsync(x => x.id == item.goiId);
-        if (package == null) throw new ArgumentException("Khong tim thay goi soat ve.");
+        if (package == null) throw new ArgumentException("Không tìm thấy gói soát vé.");
         var session = await db.PhienSoatVes.Include(x => x.chuyenXe).ThenInclude(x => x.loTrinh)
             .SingleOrDefaultAsync(x => x.id == package.phienSoatVeId && x.nhanVienId == userId);
-        if (session == null) throw new UnauthorizedAccessException("Phien khong thuoc tai khoan nay.");
+        if (session == null) throw new UnauthorizedAccessException("Phiên soát vé không thuộc tài khoản này.");
         var previous = await db.XuLySuKienOfflines.SingleOrDefaultAsync(x => x.id == item.maSuKien);
         if (previous != null)
         {
             if (previous.goiId != item.goiId || !CryptographicOperations.FixedTimeEquals(previous.bamDuLieu, digest))
-                throw new InvalidOperationException("Ma su kien da duoc dung voi du lieu khac.");
+                throw new InvalidOperationException("Mã sự kiện đã được dùng với dữ liệu khác.");
             await tx.CommitAsync();
             return new(item.maSuKien, previous.ketQua, previous.maLyDo);
         }
         if (scanTime < package.taoLuc || scanTime >= package.hetHanLuc || scanTime > DateTime.UtcNow.AddMinutes(5))
-            throw new ArgumentException("Thoi diem quet khong thuoc han goi hoac o tuong lai.");
+            throw new ArgumentException("Thời điểm quét nằm ngoài hạn gói hoặc ở tương lai.");
         var ids = JsonSerializer.Deserialize<HashSet<Guid>>(package.danhSachVeHopLe) ?? new();
         var parts = item.qr.Split(':');
         Guid ticketId = Guid.Empty;
@@ -46,11 +48,16 @@ public sealed class OfflineSyncService(SmartBusDbContext db, OfflineQrValidation
         var ticket = ticketId == Guid.Empty ? null : await db.Ves.Include(x => x.khoaKySo).SingleOrDefaultAsync(x => x.maVe == ticketId);
         var check = ticket == null || !ids.Contains(ticketId) ? new OfflineQrResult(false, "KHONG_CO_DU_LIEU") :
             verifier.Check(ticket, item.qr, scanTime, session.chuyenXe.loTrinh.tuyenXeId);
+        if (check.Valid && ticket!.maLoaiVe == ChinhSachTuyen.TheMienPhi && !await ChinhSachTuyen.TuyenMienPhiAsync(db, session.chuyenXe.loTrinh.tuyenXeId))
+            check = new OfflineQrResult(false, "SAI_PHAM_VI");
         var accepted = item.chapNhanTaiThietBi && check.Valid;
-        var reason = !item.chapNhanTaiThietBi ? "THIET_BI_TU_CHOI" : check.Reason;
+        var reason = item.chapNhanTaiThietBi ? check.Reason
+            : item.maLyDoTaiThietBi != null && LyDoTuChoiTaiThietBi.Contains(item.maLyDoTaiThietBi) ? item.maLyDoTaiThietBi : "THIET_BI_TU_CHOI";
         var stale = accepted && ticket!.trangThai != "HoatDong";
-        var duplicate = accepted && await db.LuotDis.AnyAsync(x => x.veId == ticket!.id && x.trangThai == "HopLe" &&
-            (ticket.maLoaiVe == "VeLuot" || x.buocThoiGian == check.TimeStep));
+        var duplicate = accepted && (ticket!.maLoaiVe == ChinhSachTuyen.TheMienPhi
+            ? await ChinhSachTuyen.DaCoLuotTrongChuyenAsync(db, ticket.id, session.chuyenXeId)
+            : await db.LuotDis.AnyAsync(x => x.veId == ticket.id && x.trangThai == "HopLe" &&
+                (ticket.maLoaiVe == "VeLuot" || x.buocThoiGian == check.TimeStep)));
         if (duplicate) { accepted = false; reason = "QUET_TRUNG"; }
         else if (stale) reason = "STALE_REVOCATION";
         var sequence = (await db.NhatKyQuetVes.Where(x => x.thietBiSoatVeId == session.thietBiSoatVeId)
@@ -67,7 +74,7 @@ public sealed class OfflineSyncService(SmartBusDbContext db, OfflineQrValidation
                 buocThoiGian = check.TimeStep, trangThai = "HopLe", congNhanLuc = DateTime.UtcNow });
         if (duplicate || stale)
             db.CanhBaoGianLans.Add(new CanhBaoGianLan { nhatKyQuetVeId = log.id, maCanhBao = reason,
-                noiDung = duplicate ? "Phat hien luot quet trung khi dong bo." : "Ve bi thu hoi sau khi tai goi ngoai tuyen.", trangThai = "Moi", ngayTao = DateTime.UtcNow });
+                noiDung = duplicate ? "Phát hiện lượt quét trùng khi đồng bộ." : "Vé bị thu hồi sau khi tải gói ngoại tuyến.", trangThai = "Moi", ngayTao = DateTime.UtcNow });
         var status = accepted ? "ChapNhan" : "TuChoi";
         db.XuLySuKienOfflines.Add(new XuLySuKienOffline { id = item.maSuKien, goiId = item.goiId, bamDuLieu = digest, ketQua = status, maLyDo = reason });
         await db.SaveChangesAsync();

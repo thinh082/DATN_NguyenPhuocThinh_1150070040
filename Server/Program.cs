@@ -105,5 +105,6 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.MapControllers();
+app.MapGet("/api/ping", () => Results.Ok(new { ok = true, thoiGian = DateTime.UtcNow }));
 
 app.Run();

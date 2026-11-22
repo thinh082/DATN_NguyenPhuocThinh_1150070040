@@ -9,6 +9,8 @@ public class TuyenXeDto
     public string gioKetThuc { get; set; } = "21:00";
     public short? gianCachPhut { get; set; } = 10;
     public bool trangThai { get; set; } = true;
+    public string? maChinhSach { get; set; }
+    public decimal? cuLyKm { get; set; }
 }
 
 public class TramDungDto
@@ -48,4 +50,8 @@ public class TuyenXeListItemDto
     public int gianCachPhut { get; set; }
     public bool trangThai { get; set; }
     public int soLuongLoTrinh { get; set; }
+    public decimal? cuLyKm { get; set; }
+    public bool mienPhi { get; set; }
+    public string? maChinhSach { get; set; }
+    public string? tenChinhSach { get; set; }
 }

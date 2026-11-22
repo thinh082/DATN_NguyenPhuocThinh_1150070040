@@ -19,6 +19,12 @@ public partial class TuyenXe
 
     public bool trangThai { get; set; }
 
+    public int? chinhSachMienPhiId { get; set; }
+
+    public decimal? cuLyKm { get; set; }
+
+    public virtual ChinhSachMienPhi? chinhSachMienPhi { get; set; }
+
     public virtual ICollection<GiaVe> GiaVes { get; set; } = new List<GiaVe>();
 
     public virtual ICollection<LoTrinh> LoTrinhs { get; set; } = new List<LoTrinh>();

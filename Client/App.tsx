@@ -10,6 +10,8 @@ import {
   useWindowDimensions,
   Alert,
   AppState,
+  Modal,
+  Pressable,
 } from 'react-native';
 import * as ScreenCapture from 'expo-screen-capture';
 import * as Brightness from 'expo-brightness';
@@ -17,7 +19,8 @@ import QRCode from 'react-native-qrcode-svg';
 import SoatVeScreen from './SoatVeScreen';
 import DangKyScreen from './DangKyScreen';
 import HoSoHanhKhach from './HoSoHanhKhach';
-import { BrandHeader, ErrorBanner, headerInset, Icon, InputField } from './components/MobileUi';
+import HoSoCaNhan from './HoSoCaNhan';
+import { BrandHeader, ErrorBanner, footerInset, headerInset, Icon, InputField } from './components/MobileUi';
 import { TraCuuTuyen, LichSuChuyen } from './TuyenVaLichSu';
 import { Colors } from './constants/colors';
 import * as Crypto from 'expo-crypto';
@@ -29,9 +32,11 @@ import {
   luuPhienDangNhap,
   xoaPhienDangNhap,
   khoiPhucPhienDangNhap,
+  layThongTinCaNhan,
 } from './services/xacThucService';
+import { useKetNoiMayChu } from './services/ketNoi';
 import { taoQrOffline, luuViOffline, docViOffline } from './services/viVeOffline';
-import { layDanhSachVeCuaToi, layDanhSachBieuGia, taoDonHang, VeDienTu, BieuGia } from './services/veService';
+import { layDanhSachVeCuaToi, layDanhSachBieuGia, layTheMienPhi, taoDonHang, VeDienTu, BieuGia, MA_THE_MIEN_PHI } from './services/veService';
 
 const ticketStatusLabels: Record<string, string> = {
   HoatDong: 'Đang hoạt động',
@@ -67,9 +72,28 @@ export default function App() {
   const [donHangCanThanhToan, setDonHangCanThanhToan] = useState<DonHangThanhToan | null>(null);
   const [modalThanhToanVisible, setModalThanhToanVisible] = useState(false);
   const [xeDaNhanDien, setXeDaNhanDien] = useState<any | null>(null);
+  const [cheDoVi, setCheDoVi] = useState<'mienPhi' | 'tinhPhi'>('tinhPhi');
+  const [chonViVisible, setChonViVisible] = useState(false);
+  const [loiMienPhi, setLoiMienPhi] = useState('');
 
   // Quản lý độ sáng ban đầu trước khi bật màn QR
   const originalBrightnessRef = useRef<number | null>(null);
+
+  const mayChuTrucTuyen = useKetNoiMayChu();
+  useEffect(() => {
+    if (!nguoiDungHienTai || mayChuTrucTuyen === null) return;
+    if (mayChuTrucTuyen && cheDoKetNoi === 'Offline') {
+      setCheDoKetNoi('Online');
+      layThongTinCaNhan(nguoiDungHienTai.id)
+        .then((res) => {
+          const thongTin = res.data?.thongTin;
+          if (res.statusCode === 200 && thongTin) setNguoiDungHienTai((u) => (u ? { ...u, ...thongTin } : u));
+        })
+        .catch(() => {});
+    } else if (!mayChuTrucTuyen && cheDoKetNoi === 'Online') {
+      setCheDoKetNoi('Offline');
+    }
+  }, [mayChuTrucTuyen]);
 
   // Khôi phục phiên ngoại tuyến an toàn khi khởi động ứng dụng
   useEffect(() => {
@@ -192,13 +216,17 @@ export default function App() {
   };
 
   // Tai vi ve khi mo muc Tao QR
+  const veTinhPhi = (ds: VeDienTu[]) => ds.filter((v) => v.maLoaiVe !== MA_THE_MIEN_PHI);
+
   const moTaoQr = async () => {
+    setChonViVisible(false);
+    setCheDoVi('tinhPhi');
     setManHinhCon('taoQr');
     if (nguoiDungHienTai) {
       try {
         setDangTai(true);
         if (cheDoKetNoi === 'Offline') {
-          const cached = await docViOffline(nguoiDungHienTai.id).catch(() => []);
+          const cached = veTinhPhi(await docViOffline(nguoiDungHienTai.id).catch(() => []));
           setDanhSachVe(cached);
           setVeChon(cached[0] || null);
           return;
@@ -207,17 +235,16 @@ export default function App() {
         const res = await layDanhSachVeCuaToi(nguoiDungHienTai.id);
         if (res.statusCode === 200) {
           await luuViOffline(nguoiDungHienTai.id, res.data);
-          setDanhSachVe(res.data);
-          if (res.data.length > 0) {
-            setVeChon(res.data[0]);
-            setDemLui(res.data[0].soGiayConLai);
-          }
+          const ds = veTinhPhi(res.data);
+          setDanhSachVe(ds);
+          setVeChon(ds[0] || null);
+          if (ds.length > 0) setDemLui(ds[0].soGiayConLai);
         }
-        const resGia = await layDanhSachBieuGia();
+        const resGia = await layDanhSachBieuGia(undefined, true);
         if (resGia.statusCode === 200) setDanhSachGia(resGia.data);
       } catch (e: any) {
         if (e.statusCode === 0) {
-          const cached = await docViOffline(nguoiDungHienTai.id).catch(() => []);
+          const cached = veTinhPhi(await docViOffline(nguoiDungHienTai.id).catch(() => []));
           setDanhSachVe(cached);
           setVeChon(cached[0] || null);
         } else {
@@ -228,6 +255,59 @@ export default function App() {
       } finally {
         setDangTai(false);
       }
+    }
+  };
+
+  const moViMienPhi = async () => {
+    setChonViVisible(false);
+    setXeDaNhanDien(null);
+    setCheDoVi('mienPhi');
+    setLoiMienPhi('');
+    setManHinhCon('taoQr');
+    if (!nguoiDungHienTai) return;
+    const dungTheDaLuu = async () => {
+      const cached = (await docViOffline(nguoiDungHienTai.id).catch(() => [])).filter((v) => v.maLoaiVe === MA_THE_MIEN_PHI);
+      setDanhSachVe(cached);
+      setVeChon(cached[0] || null);
+      if (cached.length === 0) setLoiMienPhi('Chưa có thẻ miễn phí lưu trên máy. Hãy kết nối mạng và mở lại mục này một lần.');
+    };
+    try {
+      setDangTai(true);
+      if (cheDoKetNoi === 'Offline') { await dungTheDaLuu(); return; }
+      const res = await layTheMienPhi();
+      if (res.statusCode !== 200 || !res.data) throw res;
+      const the = res.data;
+      const cached = await docViOffline(nguoiDungHienTai.id).catch(() => [] as VeDienTu[]);
+      await luuViOffline(nguoiDungHienTai.id, [the, ...cached.filter((v) => v.id !== the.id)]);
+      setDanhSachVe([the]);
+      setVeChon(the);
+      setDemLui(the.soGiayConLai);
+    } catch (e: any) {
+      if (e?.statusCode === 0) { await dungTheDaLuu(); return; }
+      setDanhSachVe([]);
+      setVeChon(null);
+      setLoiMienPhi(e?.message || 'Không lấy được thẻ đi xe miễn phí.');
+    } finally {
+      setDangTai(false);
+    }
+  };
+
+  const xuLyXeDaNhanDien = async (duLieu: any) => {
+    const chuyen = duLieu?.chuyenXeHienTai;
+    if (!chuyen) { setManHinhCon('trangChu'); return; }
+    if (chuyen.mienPhi) {
+      await moViMienPhi();
+      return;
+    }
+    setManHinhCon('trangChu');
+    try {
+      const res = await layDanhSachBieuGia(chuyen.tuyenXeId, true);
+      const danhSachGiaVe = (res.statusCode === 200 ? res.data : [])
+        .filter((g) => g.tuyenXeId === chuyen.tuyenXeId)
+        .map((g) => ({ giaVeId: g.id, tenLoaiVe: g.tenLoaiVe, tenNhomDoiTuong: g.tenNhomDoiTuong, giaThucThu: g.giaThucThu }));
+      setXeDaNhanDien({ bienSoXe: duLieu.bienSo, tenTuyen: `${chuyen.maTuyen} · ${chuyen.tenTuyen}`, danhSachGiaVe });
+    } catch (e: any) {
+      Alert.alert('Không tải được giá vé', e?.message || 'Vui lòng thử lại.');
     }
   };
 
@@ -358,10 +438,7 @@ export default function App() {
     return (
       <QuetQrXeScreen
         onBack={() => setManHinhCon('trangChu')}
-        onXeNhanDien={(chuyen: any) => {
-          setXeDaNhanDien(chuyen);
-          setManHinhCon('trangChu');
-        }}
+        onXeNhanDien={(chuyen: any) => { void xuLyXeDaNhanDien(chuyen); }}
       />
     );
   }
@@ -375,23 +452,45 @@ export default function App() {
     setManHinhCon('quetQrXe');
   }
 
+  const dangCapNhatThongTin = manHinhCon === 'capNhatThongTin' || manHinhCon === 'hoSoUuTien';
+  const dangOMucCon = manHinhCon !== 'trangChu';
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* Header Trang Chu */}
-      <View style={styles.homeHeader}>
+      <View style={[styles.homeHeader, dangOMucCon && styles.compactHeader]}>
+        {dangOMucCon && (
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Quay lại trang chủ"
+            style={styles.headerIconButton}
+            onPress={() => setManHinhCon('trangChu')}
+          >
+            <Icon name="arrow-back" color={Colors.white} />
+          </TouchableOpacity>
+        )}
         <View style={{ flex: 1 }}>
-          <Text style={styles.homeGreeting}>Xin chào,</Text>
-          <Text style={styles.homeUserName}>{nguoiDungHienTai.hoTen}</Text>
-          <View style={[styles.networkBadge, cheDoKetNoi === 'Offline' && styles.networkOffline]}>
+          {!dangOMucCon && <Text style={styles.homeGreeting}>Xin chào,</Text>}
+          <Text
+            style={[styles.homeUserName, dangOMucCon && styles.compactUserName]}
+            numberOfLines={dangOMucCon ? 1 : undefined}
+          >
+            {nguoiDungHienTai.hoTen}
+          </Text>
+          <View style={[styles.networkBadge, dangOMucCon && styles.compactNetworkBadge, cheDoKetNoi === 'Offline' && styles.networkOffline]}>
             <Icon name={cheDoKetNoi === 'Offline' ? 'cloud-offline-outline' : 'wifi-outline'} color={cheDoKetNoi === 'Offline' ? Colors.warningText : Colors.primaryDark} size={14} />
             <Text style={[styles.networkText, cheDoKetNoi === 'Offline' && { color: Colors.warningText }]}>{cheDoKetNoi === 'Offline' ? 'Ngoại tuyến' : 'Trực tuyến'}</Text>
           </View>
         </View>
-        <TouchableOpacity accessibilityRole="button" style={styles.logoutButton} onPress={xuLyDangXuat}>
-          <Icon name="log-out-outline" size={16} color={Colors.white} />
-          <Text style={styles.logoutText}>Đăng xuất</Text>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Đăng xuất"
+          style={dangOMucCon ? styles.headerIconButton : styles.logoutButton}
+          onPress={xuLyDangXuat}
+        >
+          <Icon name="log-out-outline" size={dangOMucCon ? 20 : 16} color={Colors.white} />
+          {!dangOMucCon && <Text style={styles.logoutText}>Đăng xuất</Text>}
         </TouchableOpacity>
       </View>
 
@@ -402,16 +501,14 @@ export default function App() {
         </View>
       )}
 
-      {manHinhCon === 'capNhatThongTin' && (
+      {dangCapNhatThongTin && (
         <View style={[styles.content, styles.profileScreen]}>
-          <TouchableOpacity accessibilityRole="button" style={styles.backButton} onPress={() => setManHinhCon('trangChu')}>
-            <Icon name="arrow-back" size={16} />
-              <Text style={styles.backButtonText}>Trang chủ</Text>
-          </TouchableOpacity>
-          <HoSoHanhKhach user={nguoiDungHienTai} onUpdated={setNguoiDungHienTai} />
+          {manHinhCon === 'capNhatThongTin'
+            ? <HoSoCaNhan user={nguoiDungHienTai} onUpdated={setNguoiDungHienTai} />
+            : <HoSoHanhKhach />}
         </View>
       )}
-      {manHinhCon !== 'capNhatThongTin' && <ScrollView contentContainerStyle={styles.content}>
+      {!dangCapNhatThongTin && <ScrollView contentContainerStyle={styles.content}>
         {dangTai && <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 8 }} />}
 
         {/* 2.1. MÀN HÌNH CHÍNH (TRANG CHỦ VỚI 4 Ô VUÔNG) */}
@@ -434,7 +531,7 @@ export default function App() {
               <Icon name="arrow-forward" color={Colors.white} />
             </TouchableOpacity>
 
-            <TouchableOpacity accessibilityRole="button" style={styles.walletCta} onPress={moTaoQr}>
+            <TouchableOpacity accessibilityRole="button" style={styles.walletCta} onPress={() => setChonViVisible(true)}>
               <Icon name="ticket-outline" />
               <Text style={styles.walletCtaText}>Mở ví vé QR của tôi</Text>
               <Icon name="chevron-forward" size={17} />
@@ -444,7 +541,7 @@ export default function App() {
 
             {/* Lưới chức năng */}
             <View style={styles.gridContainer}>
-              {/* O 1: CẬP NHẬT THÔNG TIN / NỘP HỒ SƠ ƯU TIÊN */}
+              {/* O 1: HỒ SƠ CÁ NHÂN (THÔNG TIN HÀNH CHÍNH + XÁC THỰC ĐỊNH DANH) */}
               <TouchableOpacity
                 accessibilityRole="button"
                 style={styles.gridSquare}
@@ -459,7 +556,24 @@ export default function App() {
                 <View style={styles.iconCircle}>
                   <Icon name="person-outline" size={23} />
                 </View>
-                <Text style={styles.gridTitle}>Hồ sơ & ưu tiên</Text>
+                <Text style={styles.gridTitle}>Hồ sơ cá nhân</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                accessibilityRole="button"
+                style={styles.gridSquare}
+                onPress={() => {
+                  if (cheDoKetNoi === 'Offline') {
+                    Alert.alert('Chế độ ngoại tuyến', 'Chức năng hồ sơ ưu tiên yêu cầu kết nối mạng trực tuyến.');
+                    return;
+                  }
+                  setManHinhCon('hoSoUuTien');
+                }}
+              >
+                <View style={styles.iconCircle}>
+                  <Icon name="ribbon-outline" size={23} />
+                </View>
+                <Text style={styles.gridTitle}>Hồ sơ ưu tiên</Text>
               </TouchableOpacity>
 
               {/* O 2: TRA CỨU TUYẾN XE & TRẠM DỪNG */}
@@ -478,7 +592,7 @@ export default function App() {
               <TouchableOpacity
                 accessibilityRole="button"
                 style={styles.gridSquare}
-                onPress={moTaoQr}
+                onPress={() => setChonViVisible(true)}
               >
                 <View style={styles.iconCircle}>
                   <Icon name="qr-code-outline" size={23} />
@@ -512,45 +626,45 @@ export default function App() {
         )}
 
         {/* 2.3. MÀN HÌNH CON: TRA CỨU TUYẾN XE */}
-        {manHinhCon === 'traCuuTuyen' && (
-          <View style={styles.subScreenContainer}>
-            <TouchableOpacity accessibilityRole="button" style={styles.backButton} onPress={() => setManHinhCon('trangChu')}>
-              <Icon name="arrow-back" size={16} />
-              <Text style={styles.backButtonText}>Trang chủ</Text>
-            </TouchableOpacity>
-
-            <TraCuuTuyen />
-          </View>
-        )}
+        {manHinhCon === 'traCuuTuyen' && <TraCuuTuyen />}
 
         {/* 2.4. MÀN HÌNH CON: TẠO QR / VÍ VÉ */}
         {manHinhCon === 'taoQr' && (
           <View style={styles.subScreenContainer}>
-            <View style={styles.walletTools}>
-              <TouchableOpacity accessibilityRole="button" style={styles.backButton} onPress={() => setManHinhCon('trangChu')}>
-                <Icon name="arrow-back" size={16} />
-              <Text style={styles.backButtonText}>Trang chủ</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                accessibilityRole="button"
-                style={styles.backButton}
-                onPress={() => {
-                  if (cheDoKetNoi === 'Offline') {
-                    Alert.alert('Chế độ ngoại tuyến', 'Không thể nhận diện xe buýt khi ngoại tuyến. Vui lòng kết nối Internet.');
-                    return;
-                  }
-                  setManHinhCon('quetQrXe');
-                }}
-              >
-                <Icon name="scan-outline" size={16} />
-                <Text style={styles.backButtonText}>Quét QR xe</Text>
-              </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.backButton}
+              onPress={() => {
+                if (cheDoKetNoi === 'Offline') {
+                  Alert.alert('Chế độ ngoại tuyến', 'Không thể nhận diện xe buýt khi ngoại tuyến. Vui lòng kết nối Internet.');
+                  return;
+                }
+                setManHinhCon('quetQrXe');
+              }}
+            >
+              <Icon name="scan-outline" size={16} />
+              <Text style={styles.backButtonText}>Quét QR xe</Text>
+            </TouchableOpacity>
+
+            <View style={styles.walletModeBar}>
+              <Icon name={cheDoVi === 'mienPhi' ? 'gift-outline' : 'card-outline'} />
+              <Text style={styles.walletModeText}>{cheDoVi === 'mienPhi' ? '134 tuyến xe buýt miễn phí · NQ 09/2026' : 'Các tuyến xe buýt tính phí'}</Text>
             </View>
 
             {danhSachVe.length === 0 ? (
-              <View style={styles.card}>
-                <Text style={styles.emptyText}>Ví vé hiện đang trống. Hãy chọn vé bên dưới để mua hoặc quét mã QR trên xe buýt!</Text>
-              </View>
+              cheDoVi === 'mienPhi' ? (
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Cần xác thực định danh</Text>
+                  <Text style={styles.emptyText}>{loiMienPhi || 'Từ 01/10/2026, hành khách cần xác thực bằng CCCD, VNeID, thẻ ngân hàng hoặc ví điện tử để đi miễn phí 134 tuyến.'}</Text>
+                  <TouchableOpacity accessibilityRole="button" style={styles.buyBtn} onPress={() => setManHinhCon('capNhatThongTin')}>
+                    <Text style={styles.buyBtnText}>Xác thực ngay</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.card}>
+                  <Text style={styles.emptyText}>Chưa có vé tuyến tính phí. Hãy chọn vé bên dưới để mua hoặc quét mã QR trên xe buýt!</Text>
+                </View>
+              )
             ) : (
               <>
                 {veChon && (
@@ -563,7 +677,7 @@ export default function App() {
                         </Text>
                       </View>
                       <Text style={styles.ticketRouteTitle}>{veChon.tenTuyen}</Text>
-                      <Text style={styles.ticketSubTitle}>Đối tượng: {veChon.tenNhomDoiTuong}</Text>
+                      <Text style={styles.ticketSubTitle}>{veChon.maLoaiVe === MA_THE_MIEN_PHI ? `Hạn dùng đến ${new Date(veChon.hetHanLuc).toLocaleDateString('vi-VN')} · Đã xác thực định danh` : `Đối tượng: ${veChon.tenNhomDoiTuong}`}</Text>
                     </View>
                     <View style={styles.ticketPerforation} />
                     <View style={styles.qrCodeBox}>
@@ -607,7 +721,7 @@ export default function App() {
                 )}
 
                 {/* Danh sach ve */}
-                <View style={styles.card}>
+                {cheDoVi === 'tinhPhi' && <View style={styles.card}>
                   <Text style={styles.cardTitle}>Vé trong ví ({danhSachVe.length})</Text>
                   <ScrollView horizontal contentContainerStyle={styles.ticketPicker}>
                     {danhSachVe.map((v) => (
@@ -626,18 +740,19 @@ export default function App() {
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
-                </View>
+                </View>}
               </>
             )}
 
             {/* Mục Mua vé mới / Mua thêm vé (Luôn hiển thị kể cả khi ví đã có vé) */}
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Mua vé xe buýt</Text>
+            {cheDoVi === 'tinhPhi' && <View style={styles.card}>
+              <Text style={styles.cardTitle}>Mua vé tuyến tính phí</Text>
+              {danhSachGia.length === 0 && <Text style={styles.emptyText}>Chưa có biểu giá tuyến tính phí.</Text>}
               {danhSachGia.map((g) => (
                 <View key={g.id} style={styles.fareRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fareTitle}>{g.tenLoaiVe} - {g.tenNhomDoiTuong}</Text>
-                    <Text style={styles.ticketRowSubText}>Tuyến: {g.tenTuyen}</Text>
+                    <Text style={styles.ticketRowSubText}>Tuyến: {g.maTuyen ? `${g.maTuyen} · ` : ''}{g.tenTuyen}</Text>
                     <Text style={styles.ticketRowSubText}>Giá gốc {g.giaGoc.toLocaleString('vi-VN')} đ</Text>
                     {g.soTienMienGiam > 0 && <Text style={styles.ticketRowSubText}>Miễn giảm {g.soTienMienGiam.toLocaleString('vi-VN')} đ</Text>}
                     <Text style={styles.farePrice}>Thực thu {g.giaThucThu.toLocaleString('vi-VN')} đ</Text>
@@ -650,21 +765,12 @@ export default function App() {
                   </TouchableOpacity>
                 </View>
               ))}
-            </View>
+            </View>}
           </View>
         )}
 
         {/* 2.5. MÀN HÌNH CON: LỊCH SỬ CHUYẾN XE */}
-        {manHinhCon === 'lichSuChuyen' && (
-          <View style={styles.subScreenContainer}>
-            <TouchableOpacity accessibilityRole="button" style={styles.backButton} onPress={() => setManHinhCon('trangChu')}>
-              <Icon name="arrow-back" size={16} />
-              <Text style={styles.backButtonText}>Trang chủ</Text>
-            </TouchableOpacity>
-
-            <LichSuChuyen />
-          </View>
-        )}
+        {manHinhCon === 'lichSuChuyen' && <LichSuChuyen />}
 
         {/* Panel Mua Nhanh Vé khi vừa quét được xe buýt */}
         {xeDaNhanDien && manHinhCon === 'trangChu' && (
@@ -706,6 +812,29 @@ export default function App() {
         )}
       </ScrollView>}
 
+      <Modal visible={chonViVisible} transparent animationType="slide" onRequestClose={() => setChonViVisible(false)}>
+        <Pressable style={styles.sheetBackdrop} onPress={() => setChonViVisible(false)} />
+        <View style={styles.sheet}>
+          <Text accessibilityRole="header" style={styles.cardTitle}>Chọn loại tuyến</Text>
+          <TouchableOpacity accessibilityRole="button" style={styles.walletOption} onPress={() => void moViMienPhi()}>
+            <View style={styles.iconCircle}><Icon name="gift-outline" size={22} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fareTitle}>134 tuyến xe buýt miễn phí</Text>
+              <Text style={styles.ticketRowSubText}>NQ 09/2026 · Hiện QR ngay, không cần mua vé (cần xác thực định danh)</Text>
+            </View>
+            <Icon name="chevron-forward" size={17} />
+          </TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" style={styles.walletOption} onPress={() => void moTaoQr()}>
+            <View style={styles.iconCircle}><Icon name="card-outline" size={22} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fareTitle}>Các tuyến xe buýt khác</Text>
+              <Text style={styles.ticketRowSubText}>Tuyến liên tỉnh, du lịch… · Mua vé theo tuyến</Text>
+            </View>
+            <Icon name="chevron-forward" size={17} />
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
       {/* Modal Thanh toán mô phỏng 3 trạng thái */}
       <ThanhToanMoPhongModal
         visible={modalThanhToanVisible}
@@ -722,6 +851,11 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)' },
+  sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, paddingBottom: 16 + footerInset, gap: 12 },
+  walletOption: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: Colors.border, borderRadius: 12, padding: 12 },
+  walletModeBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primaryLight, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  walletModeText: { flex: 1, color: Colors.primaryDark, fontWeight: '700' },
   loginContent: { width: '100%', maxWidth: 480, alignSelf: 'center', padding: 16, paddingBottom: 48 },
   formTitle: { fontSize: 22, fontWeight: '800', color: Colors.textPrimary },
   primaryButton: { minHeight: 48, backgroundColor: Colors.primary, borderRadius: 12, alignItems: 'center', justifyContent: 'center', padding: 12 },
@@ -741,6 +875,10 @@ const styles = StyleSheet.create({
   },
   homeGreeting: { fontSize: 14, color: Colors.primaryLight },
   homeUserName: { fontSize: 22, fontWeight: '800', color: Colors.white },
+  compactHeader: { paddingTop: headerInset + 8, paddingBottom: 12, paddingHorizontal: 16 },
+  compactUserName: { fontSize: 16 },
+  compactNetworkBadge: { marginTop: 4 },
+  headerIconButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: Colors.primaryDark },
   networkBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 5, borderRadius: 999, backgroundColor: Colors.primaryLight, marginTop: 8, paddingVertical: 4, paddingHorizontal: 8 },
   networkOffline: { backgroundColor: Colors.warningSurface },
   networkText: { color: Colors.primaryDark, fontSize: 12, fontWeight: '700' },
@@ -758,7 +896,6 @@ const styles = StyleSheet.create({
   subScreenContainer: { gap: 12 },
   backButton: { flexDirection: 'row', gap: 6, alignItems: 'center', minHeight: 48, backgroundColor: Colors.surface, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, alignSelf: 'flex-start' },
   backButtonText: { fontSize: 13, color: Colors.primaryDark, fontWeight: '700' },
-  walletTools: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   iconButton: { width: 48, height: 48, justifyContent: 'center', alignItems: 'center', borderRadius: 12 },
   card: { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 12, borderWidth: 1, borderColor: Colors.border, elevation: 1 },
   cardTitle: { fontSize: 17, fontWeight: '800', color: Colors.textPrimary },

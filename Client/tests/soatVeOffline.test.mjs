@@ -30,3 +30,20 @@ test('accepts valid signed ticket and rejects forged, expired and replayed ticke
   assert.equal(xacThucNgoaiTuyen(payload, pack, [], now + 86400000).hopLe, false);
   assert.equal(xacThucNgoaiTuyen(payload, { ...pack, tuyenXeId: 2 }, [], now).maLyDo, 'SAI_TUYEN');
 });
+
+test('free card is rejected on paid routes and allows one ride per trip', () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const maVe = '22222222-2222-2222-2222-222222222222';
+  const now = Date.UTC(2026, 9, 1);
+  const signed = JSON.stringify({ v: 1, mv: maVe, lv: 'TheMienPhi', tx: null, tu: '2026-09-30T00:00:00Z', den: '2026-12-31T23:59:59Z', mk: 'KEY1' });
+  const signature = sign('sha256', Buffer.from(signed), { key: privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64');
+  const secret = Buffer.from('abcdefghijabcdefghijabcdefghij12').toString('base64');
+  const otp = generateSync({ secret: new Uint8Array(Buffer.from(secret, 'base64')), algorithm: 'sha256', digits: 8, period: 30, epoch: now / 1000 });
+  const payload = `SMARTBUS:v1:${maVe}:${otp}:${signature}`;
+  const ticket = { maVe, duLieuDaKy: Buffer.from(signed).toString('base64'), khoaCongKhai: publicKey.export({ type: 'spki', format: 'der' }).toString('base64'), biMatTotp: secret, trangThai: 'HoatDong' };
+  const pack = { hetHanLuc: new Date(now + 60000).toISOString(), tuyenXeId: 5, tuyenMienPhi: true, ves: [ticket] };
+  assert.equal(xacThucNgoaiTuyen(payload, pack, [], now).maLyDo, 'HOP_LE');
+  assert.equal(xacThucNgoaiTuyen(payload, { ...pack, tuyenMienPhi: false }, [], now).maLyDo, 'SAI_PHAM_VI');
+  assert.equal(xacThucNgoaiTuyen(payload, pack, [{ maVe, buocThoiGian: 1, cungChuyen: 1 }], now).maLyDo, 'DA_SU_DUNG');
+  assert.equal(xacThucNgoaiTuyen(payload, pack, [{ maVe, buocThoiGian: now / 30000, cungChuyen: 0 }], now).maLyDo, 'HOP_LE');
+});

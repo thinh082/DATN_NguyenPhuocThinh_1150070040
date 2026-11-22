@@ -32,7 +32,7 @@ public class BaoCaoService : IBaoCaoService
             .GroupBy(x => new
             {
                 maTuyen = x.Ve.tuyenXe != null ? x.Ve.tuyenXe.maTuyen : "TOAN_MANG",
-                tenTuyen = x.Ve.tuyenXe != null ? x.Ve.tuyenXe.tenTuyen : "Toan mang luoi"
+                tenTuyen = x.Ve.tuyenXe != null ? x.Ve.tuyenXe.tenTuyen : "Toàn mạng lưới"
             })
             .Select(g => new
             {

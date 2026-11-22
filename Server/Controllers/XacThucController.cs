@@ -12,10 +12,12 @@ namespace Server.Controllers;
 public class XacThucController : ControllerBase
 {
     private readonly IXacThucService _xacThucService;
+    private readonly IVeService _veService;
 
-    public XacThucController(IXacThucService xacThucService)
+    public XacThucController(IXacThucService xacThucService, IVeService veService)
     {
         _xacThucService = xacThucService;
+        _veService = veService;
     }
 
     [HttpPost("dang-nhap")]
@@ -25,25 +27,25 @@ public class XacThucController : ControllerBase
         {
             if (string.IsNullOrWhiteSpace(thongTin.taiKhoan) || string.IsNullOrWhiteSpace(thongTin.matKhau))
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Tai khoan va mat khau khong duoc de trong", 400));
+                return Ok(KetQuaPhanHoi.ThatBai("Tài khoản và mật khẩu không được để trống", 400));
             }
 
             var ketQua = await _xacThucService.dangNhap(thongTin);
             if (ketQua == null)
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Tai khoan hoac mat khau khong chinh xac", 401));
+                return Ok(KetQuaPhanHoi.ThatBai("Tài khoản hoặc mật khẩu không chính xác", 401));
             }
 
             if (ketQua.GetType().GetProperty("biKhoa") != null)
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Tai khoan da bi khoa, vui long lien he quan tri vien", 403));
+                return Ok(KetQuaPhanHoi.ThatBai("Tài khoản đã bị khóa, vui lòng liên hệ quản trị viên", 403));
             }
 
-            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Dang nhap thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Đăng nhập thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -54,11 +56,11 @@ public class XacThucController : ControllerBase
         {
             if (string.IsNullOrWhiteSpace(thongTin.hoTen) || string.IsNullOrWhiteSpace(thongTin.matKhau))
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Ho ten va mat khau la bat buoc", 400));
+                return Ok(KetQuaPhanHoi.ThatBai("Họ tên và mật khẩu là bắt buộc", 400));
             }
 
             var ketQua = await _xacThucService.dangKy(thongTin);
-            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Dang ky tai khoan thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Đăng ký tài khoản thành công"));
         }
         catch (Exception ex)
         {
@@ -75,14 +77,14 @@ public class XacThucController : ControllerBase
             var duLieu = await _xacThucService.layThongTinCaNhan(int.Parse(User.FindFirst("id")!.Value));
             if (duLieu == null)
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Khong tim thay nguoi dung", 404));
+                return Ok(KetQuaPhanHoi.ThatBai("Không tìm thấy người dùng", 404));
             }
 
-            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lay thong tin ca nhan thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lấy thông tin cá nhân thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -90,13 +92,37 @@ public class XacThucController : ControllerBase
     [Authorize(Roles = "HanhKhach")]
     public async Task<IActionResult> capNhatCaNhan([FromBody] CapNhatCaNhanDto thongTin)
     {
-        try { return Ok(KetQuaPhanHoi.ThanhCong(await _xacThucService.capNhatThongTin(int.Parse(User.FindFirst("id")!.Value), thongTin), "Cap nhat thanh cong")); }
+        try { return Ok(KetQuaPhanHoi.ThanhCong(await _xacThucService.capNhatThongTin(int.Parse(User.FindFirst("id")!.Value), thongTin), "Cập nhật thành công")); }
         catch (ArgumentException ex) { return BadRequest(KetQuaPhanHoi.ThatBai(ex.Message, 400)); }
     }
 
     [HttpGet("nhom-uu-tien")]
     [Authorize(Roles = "HanhKhach")]
     public async Task<IActionResult> layNhomUuTien() => Ok(KetQuaPhanHoi.ThanhCong(await _xacThucService.layNhomUuTien()));
+
+    [HttpGet("dia-chi/tinh-thanh")]
+    [Authorize]
+    public async Task<IActionResult> layTinhThanh() => Ok(KetQuaPhanHoi.ThanhCong(await _xacThucService.layTinhThanh()));
+
+    [HttpGet("dia-chi/phuong-xa")]
+    [Authorize]
+    public async Task<IActionResult> layPhuongXa([FromQuery] int maTinhThanh) => Ok(KetQuaPhanHoi.ThanhCong(await _xacThucService.layPhuongXa(maTinhThanh)));
+
+    [HttpPost("xac-thuc-dinh-danh")]
+    [Authorize(Roles = "HanhKhach")]
+    public async Task<IActionResult> xacThucDinhDanh([FromBody] XacThucDinhDanhDto dto)
+    {
+        try
+        {
+            var userId = int.Parse(User.FindFirst("id")!.Value);
+            var ketQua = await _xacThucService.xacThucDinhDanh(userId, dto);
+            try { await _veService.layHoacCapTheMienPhi(userId); }
+            catch (Exception ex) { Console.Error.WriteLine($"[CanhBao] Chua cap duoc the mien phi cho nguoi dung {userId}: {ex.Message}"); }
+            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Xác thực định danh thành công"));
+        }
+        catch (ArgumentException ex) { return BadRequest(KetQuaPhanHoi.ThatBai(ex.Message, 400)); }
+        catch (UnauthorizedAccessException ex) { return BadRequest(KetQuaPhanHoi.ThatBai(ex.Message, 400)); }
+    }
 
     [HttpGet("ho-so-cua-toi")]
     [Authorize(Roles = "HanhKhach")]
@@ -110,7 +136,7 @@ public class XacThucController : ControllerBase
         {
             hoSo.nguoiDungId = int.Parse(User.FindFirst("id")!.Value);
             var ketQua = await _xacThucService.nopHoSoUuTien(hoSo);
-            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Nop ho so uu tien thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Nộp hồ sơ ưu tiên thành công"));
         }
         catch (Exception ex)
         {
@@ -125,11 +151,11 @@ public class XacThucController : ControllerBase
         try
         {
             var duLieu = await _xacThucService.layDanhSachHoSoChoDuyet();
-            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lay danh sach ho so cho duyet thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(duLieu, "Lấy danh sách hồ sơ chờ duyệt thành công"));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -147,15 +173,15 @@ public class XacThucController : ControllerBase
             var ketQua = await _xacThucService.duyetHoSoUuTien(hoSoId, chapNhan, nguoiDuyetId, lyDo);
             if (!ketQua)
             {
-                return Ok(KetQuaPhanHoi.ThatBai("Khong tim thay ho so de duyet", 404));
+                return Ok(KetQuaPhanHoi.ThatBai("Không tìm thấy hồ sơ để duyệt", 404));
             }
 
-            string thongBao = chapNhan ? "Phe duyet ho so uu tien thanh cong" : "Tu choi ho so uu tien thanh cong";
+            string thongBao = chapNhan ? "Phê duyệt hồ sơ ưu tiên thành công" : "Từ chối hồ sơ ưu tiên thành công";
             return Ok(KetQuaPhanHoi.ThanhCong(new { hoSoId, chapNhan }, thongBao));
         }
         catch (Exception ex)
         {
-            return Ok(KetQuaPhanHoi.ThatBai("Loi he thong: " + ex.Message, 500));
+            return Ok(KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 
@@ -168,7 +194,7 @@ public class XacThucController : ControllerBase
         {
             var userId = int.Parse(User.FindFirst("id")!.Value);
             var ketQua = await _xacThucService.taiLenMinhChung(userId, tep);
-            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Tai len tep minh chung thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(ketQua, "Tải lên tệp minh chứng thành công"));
         }
         catch (ArgumentException ex)
         {
@@ -184,7 +210,7 @@ public class XacThucController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, KetQuaPhanHoi.ThatBai("Loi he thong khi tai len tep: " + ex.Message, 500));
+            return StatusCode(500, KetQuaPhanHoi.LoiHeThong(ex));
         }
     }
 

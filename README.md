@@ -20,6 +20,12 @@ sqlcmd -S localhost -E -C -b -f i:65001 -i "Server/Database/01_khoi_tao_SmartBus
 sqlcmd -S localhost -E -C -b -f i:65001 -d SmartBusDb -i "Server/Database/02_goi_soat_ve.sql"
 sqlcmd -S localhost -E -C -b -f i:65001 -d SmartBusDb -i "Server/Database/03_tep_minh_chung.sql"
 sqlcmd -S localhost -E -C -b -f i:65001 -d SmartBusDb -i "Server/Database/04_seed_134_tuyen_NQ09_2026.sql"
+sqlcmd -S localhost -E -C -b -I -f i:65001 -d SmartBusDb -i "Server/Database/05_seed_chuyen_xe_134_tuyen.sql"
+sqlcmd -S localhost -E -C -b -f i:65001 -d SmartBusDb -i "Server/Database/06_dia_chi_va_xac_thuc_dinh_danh.sql"
+sqlcmd -S localhost -E -C -b -I -f i:65001 -d SmartBusDb -i "Server/Database/07_du_lieu_demo_co_dau.sql"
+sqlcmd -S localhost -E -C -b -I -f i:65001 -d SmartBusDb -i "Server/Database/08_chinh_sach_mien_phi_tuyen.sql"
+# Chay lai 05 de tao lo trinh/xe/chuyen cho 24 tuyen tinh phi vua nhap o buoc 08
+sqlcmd -S localhost -E -C -b -I -f i:65001 -d SmartBusDb -i "Server/Database/05_seed_chuyen_xe_134_tuyen.sql"
 ```
 
 Nếu tên SQL Server trên máy đích khác, thay `-S localhost` trong các lệnh SQL và cài lại chuỗi kết nối. Ví dụ dưới đây dùng instance `SQLEXPRESS` và Windows Authentication.

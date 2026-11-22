@@ -7,7 +7,7 @@ namespace Server.Services;
 
 public interface IVanHanhService
 {
-    Task<dynamic> layDanhSachTuyenXe();
+    Task<dynamic> layDanhSachTuyenXe(string? loc = null);
     Task<dynamic> layChiTietTuyenXe(int id);
     Task<dynamic> luuTuyenXe(TuyenXeDto thongTin);
     Task<dynamic> layDanhSachTramDung(int? tuyenXeId);
@@ -30,9 +30,21 @@ public class VanHanhService : IVanHanhService
         _cache = cache;
     }
 
-    public async Task<dynamic> layDanhSachTuyenXe()
+    public async Task<dynamic> layDanhSachTuyenXe(string? loc = null)
     {
-        const string cacheKey = "smartbus:cache:tuyen-xe:tat-ca";
+        var danhSach = await LayTatCaTuyen();
+        return loc switch
+        {
+            "mienPhi" => danhSach.Where(x => x.mienPhi).ToList(),
+            "tinhPhi" => danhSach.Where(x => !x.mienPhi).ToList(),
+            _ => danhSach
+        };
+    }
+
+    private async Task<List<TuyenXeListItemDto>> LayTatCaTuyen()
+    {
+        var ngay = ChinhSachTuyen.HomNay;
+        var cacheKey = $"smartbus:cache:tuyen-xe:tat-ca:{ngay:yyyyMMdd}";
         if (_cache != null)
         {
             var cached = await _cache.GetAsync<List<TuyenXeListItemDto>>(cacheKey);
@@ -41,6 +53,7 @@ public class VanHanhService : IVanHanhService
 
         var danhSach = await _context.TuyenXes
             .AsNoTracking()
+            .OrderBy(x => x.maTuyen)
             .Select(x => new TuyenXeListItemDto
             {
                 id = x.id,
@@ -50,7 +63,11 @@ public class VanHanhService : IVanHanhService
                 gioKetThuc = x.gioKetThuc.ToString("HH:mm"),
                 gianCachPhut = x.gianCachPhut ?? 0,
                 trangThai = x.trangThai,
-                soLuongLoTrinh = x.LoTrinhs.Count
+                soLuongLoTrinh = x.LoTrinhs.Count,
+                cuLyKm = x.cuLyKm,
+                mienPhi = x.chinhSachMienPhi != null && x.chinhSachMienPhi.trangThai && x.chinhSachMienPhi.hieuLucTu <= ngay && x.chinhSachMienPhi.hieuLucDen >= ngay,
+                maChinhSach = x.chinhSachMienPhi != null ? x.chinhSachMienPhi.ma : null,
+                tenChinhSach = x.chinhSachMienPhi != null ? x.chinhSachMienPhi.ten : null
             })
             .ToListAsync();
 
@@ -67,6 +84,7 @@ public class VanHanhService : IVanHanhService
         var tuyen = await _context.TuyenXes
             .AsNoTracking()
             .Where(x => x.id == id)
+            .Include(x => x.chinhSachMienPhi)
             .Include(x => x.LoTrinhs)
                 .ThenInclude(lt => lt.LoTrinhTramDungs)
                 .ThenInclude(lttd => lttd.tramDung)
@@ -84,6 +102,10 @@ public class VanHanhService : IVanHanhService
             gioKetThuc = tuyen.gioKetThuc.ToString("HH:mm"),
             tuyen.gianCachPhut,
             tuyen.trangThai,
+            tuyen.cuLyKm,
+            mienPhi = tuyen.chinhSachMienPhi != null && tuyen.chinhSachMienPhi.trangThai && tuyen.chinhSachMienPhi.hieuLucTu <= ChinhSachTuyen.HomNay && tuyen.chinhSachMienPhi.hieuLucDen >= ChinhSachTuyen.HomNay,
+            maChinhSach = tuyen.chinhSachMienPhi?.ma,
+            tenChinhSach = tuyen.chinhSachMienPhi?.ten,
             loTrinhs = tuyen.LoTrinhs.Where(lt => lt.hieuLucTu <= now && (lt.hieuLucDen == null || lt.hieuLucDen > now))
             .OrderBy(lt => lt.chieu).ThenByDescending(lt => lt.phienBan).Select(lt => new
             {
@@ -112,6 +134,10 @@ public class VanHanhService : IVanHanhService
     {
         TimeOnly.TryParse(thongTin.gioBatDau, out var gioBatDau);
         TimeOnly.TryParse(thongTin.gioKetThuc, out var gioKetThuc);
+        int? chinhSachId = null;
+        if (!string.IsNullOrWhiteSpace(thongTin.maChinhSach))
+            chinhSachId = (await _context.ChinhSachMienPhis.FirstOrDefaultAsync(x => x.ma == thongTin.maChinhSach))?.id
+                ?? throw new ArgumentException("Chính sách miễn phí không hợp lệ.");
 
         if (thongTin.id == 0)
         {
@@ -122,7 +148,9 @@ public class VanHanhService : IVanHanhService
                 gioBatDau = gioBatDau,
                 gioKetThuc = gioKetThuc,
                 gianCachPhut = thongTin.gianCachPhut,
-                trangThai = thongTin.trangThai
+                trangThai = thongTin.trangThai,
+                chinhSachMienPhiId = chinhSachId,
+                cuLyKm = thongTin.cuLyKm
             };
 
             await _context.TuyenXes.AddAsync(tuyenMoi);
@@ -134,7 +162,7 @@ public class VanHanhService : IVanHanhService
                 await _cache.RemoveByPrefixAsync("smartbus:cache:bieu-gia");
             }
 
-            return new { id = tuyenMoi.id, thongBao = "Them moi tuyen xe thanh cong" };
+            return new { id = tuyenMoi.id, thongBao = "Thêm mới tuyến xe thành công" };
         }
         else
         {
@@ -147,6 +175,8 @@ public class VanHanhService : IVanHanhService
             tonTai.gioKetThuc = gioKetThuc;
             tonTai.gianCachPhut = thongTin.gianCachPhut;
             tonTai.trangThai = thongTin.trangThai;
+            tonTai.chinhSachMienPhiId = chinhSachId;
+            if (thongTin.cuLyKm.HasValue) tonTai.cuLyKm = thongTin.cuLyKm;
 
             await _context.SaveChangesAsync();
 
@@ -156,7 +186,7 @@ public class VanHanhService : IVanHanhService
                 await _cache.RemoveByPrefixAsync("smartbus:cache:bieu-gia");
             }
 
-            return new { id = tonTai.id, thongBao = "Cap nhat tuyen xe thanh cong" };
+            return new { id = tonTai.id, thongBao = "Cập nhật tuyến xe thành công" };
         }
     }
 
@@ -197,7 +227,7 @@ public class VanHanhService : IVanHanhService
             {
                 await _cache.RemoveByPrefixAsync("smartbus:cache:tuyen-xe");
             }
-            return new { id = tramMoi.id, thongBao = "Them moi tram dung thanh cong" };
+            return new { id = tramMoi.id, thongBao = "Thêm mới trạm dừng thành công" };
         }
         else
         {
@@ -216,7 +246,7 @@ public class VanHanhService : IVanHanhService
             {
                 await _cache.RemoveByPrefixAsync("smartbus:cache:tuyen-xe");
             }
-            return new { id = tonTai.id, thongBao = "Cap nhat tram dung thanh cong" };
+            return new { id = tonTai.id, thongBao = "Cập nhật trạm dừng thành công" };
         }
     }
 
@@ -239,7 +269,7 @@ public class VanHanhService : IVanHanhService
 
             await _context.XeBuyts.AddAsync(xeMoi);
             await _context.SaveChangesAsync();
-            return new { id = xeMoi.id, thongBao = "Them moi xe buyt thanh cong" };
+            return new { id = xeMoi.id, thongBao = "Thêm mới xe buýt thành công" };
         }
         else
         {
@@ -251,7 +281,7 @@ public class VanHanhService : IVanHanhService
             tonTai.trangThai = thongTin.trangThai;
 
             await _context.SaveChangesAsync();
-            return new { id = tonTai.id, thongBao = "Cap nhat xe buyt thanh cong" };
+            return new { id = tonTai.id, thongBao = "Cập nhật xe buýt thành công" };
         }
     }
 
@@ -296,6 +326,7 @@ public class VanHanhService : IVanHanhService
                 tuyenXeId = trip.loTrinh.tuyenXeId,
                 maTuyen = trip.loTrinh.tuyenXe.maTuyen,
                 tenTuyen = trip.loTrinh.tuyenXe.tenTuyen,
+                mienPhi = await ChinhSachTuyen.TuyenMienPhiAsync(_context, trip.loTrinh.tuyenXeId),
                 chieu = trip.loTrinh.chieu,
                 tenLoTrinh = trip.loTrinh.tenLoTrinh
             }
@@ -305,17 +336,17 @@ public class VanHanhService : IVanHanhService
     public async Task<dynamic> batDauPhienSoatVe(BatDauPhienDto thongTin)
     {
         var thietBi = await _context.ThietBiSoatVes.FindAsync(thongTin.thietBiId);
-        if (thietBi == null || !thietBi.trangThai) throw new Exception("Khong tim thay thiet bi soat ve");
-        if (!await _context.ChuyenXes.AnyAsync(x => x.id == thongTin.chuyenXeId && x.trangThai == "DangChay")) throw new Exception("Chuyen xe khong dang hoat dong");
+        if (thietBi == null || !thietBi.trangThai) throw new Exception("Không tìm thấy thiết bị soát vé");
+        if (!await _context.ChuyenXes.AnyAsync(x => x.id == thongTin.chuyenXeId && x.trangThai == "DangChay")) throw new Exception("Chuyến xe không đang hoạt động");
 
         var nhanVien = await _context.NguoiDungs.FindAsync(thongTin.nhanVienId);
-        if (nhanVien == null) throw new Exception("Khong tim thay nhan vien soat ve");
+        if (nhanVien == null) throw new Exception("Không tìm thấy nhân viên soát vé");
 
         var phienDangMo = await _context.PhienSoatVes.FirstOrDefaultAsync(x => x.thietBiSoatVeId == thongTin.thietBiId && x.ketThucLuc == null);
         if (phienDangMo != null)
         {
             if (phienDangMo.nhanVienId != thongTin.nhanVienId || phienDangMo.chuyenXeId != thongTin.chuyenXeId)
-                throw new Exception("Thiet bi dang co phien soat ve khac.");
+                throw new Exception("Thiết bị đang có phiên soát vé khác.");
             return new { phienId = phienDangMo.id, thietBi.tenThietBi, nhanVien.hoTen, phienDangMo.batDauLuc };
         }
 

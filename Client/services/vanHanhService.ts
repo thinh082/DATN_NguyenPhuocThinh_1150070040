@@ -9,10 +9,16 @@ export interface TuyenXe {
   gianCachPhut: number | null;
   trangThai: boolean;
   soLuongLoTrinh: number;
+  cuLyKm?: number | null;
+  mienPhi: boolean;
+  maChinhSach?: string | null;
+  tenChinhSach?: string | null;
 }
 
-export const layDanhSachTuyenXe = async (): Promise<PhanHoiApi<TuyenXe[]>> => {
-  const response = await apiClient.get<PhanHoiApi<TuyenXe[]>>('/api/VanHanh/danh-sach-tuyen');
+export type LocTuyen = 'tatCa' | 'mienPhi' | 'tinhPhi';
+
+export const layDanhSachTuyenXe = async (loc: LocTuyen = 'tatCa'): Promise<PhanHoiApi<TuyenXe[]>> => {
+  const response = await apiClient.get<PhanHoiApi<TuyenXe[]>>(`/api/VanHanh/danh-sach-tuyen?loc=${loc}`);
   return response.data;
 };
 

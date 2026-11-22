@@ -15,6 +15,18 @@ public partial class NguoiDung
 
     public string? cccd { get; set; }
 
+    public string? diaChi { get; set; }
+
+    public int? maTinhThanh { get; set; }
+
+    public int? maPhuongXa { get; set; }
+
+    public string? phuongThucXacThuc { get; set; }
+
+    public DateTime? ngayXacThuc { get; set; }
+
+    public string? minhChungXacThuc { get; set; }
+
     public string matKhauBam { get; set; } = null!;
 
     public string vaiTro { get; set; } = null!;
@@ -40,4 +52,8 @@ public partial class NguoiDung
     public virtual ICollection<PhienSoatVe> PhienSoatVes { get; set; } = new List<PhienSoatVe>();
 
     public virtual ICollection<Ve> Ves { get; set; } = new List<Ve>();
+
+    public virtual TinhThanh? tinhThanh { get; set; }
+
+    public virtual PhuongXa? phuongXa { get; set; }
 }

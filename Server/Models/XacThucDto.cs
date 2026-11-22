@@ -6,6 +6,15 @@ public class CapNhatCaNhanDto
     public string? soDienThoai { get; set; }
     public string? email { get; set; }
     public string? cccd { get; set; }
+    public string? diaChi { get; set; }
+    public int? maTinhThanh { get; set; }
+    public int? maPhuongXa { get; set; }
+}
+
+public class XacThucDinhDanhDto
+{
+    public string phuongThuc { get; set; } = string.Empty;
+    public string? duongDanMinhChung { get; set; }
 }
 
 public class DangNhapDto

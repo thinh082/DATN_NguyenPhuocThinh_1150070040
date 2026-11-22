@@ -50,7 +50,7 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
     {
         var start = tuNgay ?? DateTime.UtcNow.Date.AddDays(-29);
         var end = denNgay ?? DateTime.UtcNow;
-        if (end < start) return BadRequest(KetQuaPhanHoi.ThatBai("Khoang ngay khong hop le.", 400));
+        if (end < start) return BadRequest(KetQuaPhanHoi.ThatBai("Khoảng ngày không hợp lệ.", 400));
         var orders = db.DonHangs.AsNoTracking().Where(x => x.ngayTao >= start && x.ngayTao <= end && (x.trangThai == "DaThanhToan" || x.trangThai == "MienPhi"));
         var total = await orders.SumAsync(x => (decimal?)(x.tongGiaGoc - x.tongMienGiam)) ?? 0;
         return Ok(KetQuaPhanHoi.ThanhCong(new
@@ -69,7 +69,7 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
     {
         var start = (tuNgay ?? DateTime.UtcNow.Date.AddDays(-29)).ToUniversalTime();
         var end = (denNgay ?? DateTime.UtcNow).ToUniversalTime();
-        if (end < start) return BadRequest(KetQuaPhanHoi.ThatBai("Khoang ngay khong hop le.", 400));
+        if (end < start) return BadRequest(KetQuaPhanHoi.ThatBai("Khoảng ngày không hợp lệ.", 400));
 
         var donHangQuery = db.DonHangs.AsNoTracking().Where(x => x.ngayTao >= start && x.ngayTao <= end && (x.trangThai == "DaThanhToan" || x.trangThai == "MienPhi"));
         if (tuyenXeId.HasValue)
@@ -140,7 +140,7 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
             .Include(x => x.LoTrinhTramDungs)
                 .ThenInclude(t => t.tramDung)
             .FirstOrDefaultAsync(x => x.id == id);
-        if (loTrinh == null) return NotFound(KetQuaPhanHoi.ThatBai("Khong tim thay lo trinh", 404));
+        if (loTrinh == null) return NotFound(KetQuaPhanHoi.ThatBai("Không tìm thấy lộ trình", 404));
 
         return Ok(KetQuaPhanHoi.ThanhCong(new
         {
@@ -176,21 +176,21 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
     public async Task<IActionResult> TaoLoTrinh([FromBody] TaoLoTrinhDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.tenLoTrinh) || dto.chieu is not ("Di" or "Ve"))
-            return BadRequest(KetQuaPhanHoi.ThatBai("Chieu lo trinh phai la 'Di' hoac 'Ve' va ten khong duoc de trong.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Chiều lộ trình phải là lượt đi hoặc lượt về và tên không được để trống.", 400));
         if (dto.hieuLucDen.HasValue && dto.hieuLucDen.Value <= dto.hieuLucTu)
-            return BadRequest(KetQuaPhanHoi.ThatBai("Hieu luc den phai sau hieu luc tu.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Ngày hết hiệu lực phải sau ngày bắt đầu hiệu lực.", 400));
         if (dto.danhSachTramId == null || dto.danhSachTramId.Count < 2)
-            return BadRequest(KetQuaPhanHoi.ThatBai("Lo trinh phai co toi thieu 2 tram dung.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Lộ trình phải có tối thiểu 2 trạm dừng.", 400));
         if (dto.danhSachTramId.Distinct().Count() != dto.danhSachTramId.Count)
-            return BadRequest(KetQuaPhanHoi.ThatBai("Cac tram dung trong cung mot lo trinh khong duoc lap lai.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Các trạm dừng trong cùng một lộ trình không được lặp lại.", 400));
 
         var tuyen = await db.TuyenXes.FindAsync(dto.tuyenXeId);
         if (tuyen == null || !tuyen.trangThai)
-            return BadRequest(KetQuaPhanHoi.ThatBai("Tuyen xe khong ton tai hoac da bi vo hieu hoa.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Tuyến xe không tồn tại hoặc đã bị vô hiệu hóa.", 400));
 
         var tramCount = await db.TramDungs.CountAsync(x => dto.danhSachTramId.Contains(x.id) && x.trangThai);
         if (tramCount != dto.danhSachTramId.Count)
-            return BadRequest(KetQuaPhanHoi.ThatBai("Mot hoac nhieu tram dung khong ton tai hoac da bi vo hieu hoa.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Một hoặc nhiều trạm dừng không tồn tại hoặc đã bị vô hiệu hóa.", 400));
 
         var currentOpen = await db.LoTrinhs.FirstOrDefaultAsync(x => x.tuyenXeId == dto.tuyenXeId && x.chieu == dto.chieu && x.hieuLucDen == null);
         if (currentOpen != null)
@@ -205,7 +205,7 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
                 x.hieuLucTu < (dto.hieuLucDen ?? DateTime.MaxValue) &&
                 dto.hieuLucTu < (x.hieuLucDen ?? DateTime.MaxValue));
             if (overlap)
-                return BadRequest(KetQuaPhanHoi.ThatBai("Khoang thoi gian hieu luc bi chong lan voi phien ban khac cua cung tuyen va chieu.", 400));
+                return BadRequest(KetQuaPhanHoi.ThatBai("Khoảng thời gian hiệu lực bị chồng lấn với phiên bản khác của cùng tuyến và chiều.", 400));
         }
 
         var maxVersion = await db.LoTrinhs
@@ -245,7 +245,7 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
 
             if (cache != null) await cache.RemoveByPrefixAsync("smartbus:cache:tuyen-xe");
 
-            return Ok(KetQuaPhanHoi.ThanhCong(new { loTrinh.id, phienBan = newVersion }, "Tao lo trinh thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(new { loTrinh.id, phienBan = newVersion }, "Tạo lộ trình thành công"));
         }
         catch
         {
@@ -258,24 +258,24 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
     public async Task<IActionResult> CapNhatLoTrinh(int id, [FromBody] TaoLoTrinhDto dto)
     {
         var loTrinh = await db.LoTrinhs.Include(x => x.LoTrinhTramDungs).FirstOrDefaultAsync(x => x.id == id);
-        if (loTrinh == null) return NotFound(KetQuaPhanHoi.ThatBai("Khong tim thay lo trinh", 404));
+        if (loTrinh == null) return NotFound(KetQuaPhanHoi.ThatBai("Không tìm thấy lộ trình", 404));
 
         var coChuyenSuDung = await db.ChuyenXes.AnyAsync(x => x.loTrinhId == id);
         if (coChuyenSuDung)
             return Conflict(KetQuaPhanHoi.ThatBai("Lộ trình đã có chuyến xe sử dụng, không được sửa đổi trực tiếp. Hãy tạo phiên bản mới.", 409));
 
         if (string.IsNullOrWhiteSpace(dto.tenLoTrinh) || dto.chieu is not ("Di" or "Ve"))
-            return BadRequest(KetQuaPhanHoi.ThatBai("Chieu lo trinh phai la 'Di' hoac 'Ve' va ten khong duoc de trong.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Chiều lộ trình phải là lượt đi hoặc lượt về và tên không được để trống.", 400));
         if (dto.hieuLucDen.HasValue && dto.hieuLucDen.Value <= dto.hieuLucTu)
-            return BadRequest(KetQuaPhanHoi.ThatBai("Hieu luc den phai sau hieu luc tu.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Ngày hết hiệu lực phải sau ngày bắt đầu hiệu lực.", 400));
         if (dto.danhSachTramId == null || dto.danhSachTramId.Count < 2)
-            return BadRequest(KetQuaPhanHoi.ThatBai("Lo trinh phai co toi thieu 2 tram dung.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Lộ trình phải có tối thiểu 2 trạm dừng.", 400));
         if (dto.danhSachTramId.Distinct().Count() != dto.danhSachTramId.Count)
-            return BadRequest(KetQuaPhanHoi.ThatBai("Cac tram dung trong cung mot lo trinh khong duoc lap lai.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Các trạm dừng trong cùng một lộ trình không được lặp lại.", 400));
 
         var tramCount = await db.TramDungs.CountAsync(x => dto.danhSachTramId.Contains(x.id) && x.trangThai);
         if (tramCount != dto.danhSachTramId.Count)
-            return BadRequest(KetQuaPhanHoi.ThatBai("Mot hoac nhieu tram dung khong ton tai hoac da bi vo hieu hoa.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Một hoặc nhiều trạm dừng không tồn tại hoặc đã bị vô hiệu hóa.", 400));
 
         await using var tx = await db.Database.BeginTransactionAsync();
         try
@@ -305,7 +305,7 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
 
             if (cache != null) await cache.RemoveByPrefixAsync("smartbus:cache:tuyen-xe");
 
-            return Ok(KetQuaPhanHoi.ThanhCong(null, "Cap nhat lo trinh thanh cong"));
+            return Ok(KetQuaPhanHoi.ThanhCong(null, "Cập nhật lộ trình thành công"));
         }
         catch
         {
@@ -343,11 +343,11 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
     public async Task<IActionResult> TaoChuyen([FromBody] ChuyenDto dto)
     {
         if (dto.gioKetThucDuKien <= dto.gioKhoiHanhDuKien || !await db.LoTrinhs.AnyAsync(x => x.id == dto.loTrinhId) || !await db.XeBuyts.AnyAsync(x => x.id == dto.xeBuytId && x.trangThai))
-            return BadRequest(KetQuaPhanHoi.ThatBai("Lo trinh, xe hoac thoi gian khong hop le.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Lộ trình, xe hoặc thời gian không hợp lệ.", 400));
         var start = dto.gioKhoiHanhDuKien.ToUniversalTime();
         var end = dto.gioKetThucDuKien.ToUniversalTime();
         if (await db.ChuyenXes.AnyAsync(x => x.xeBuytId == dto.xeBuytId && x.trangThai != "Huy" && x.trangThai != "HoanThanh" && x.gioKhoiHanhDuKien < end && x.gioKetThucDuKien > start))
-            return BadRequest(KetQuaPhanHoi.ThatBai("Xe da co chuyen trung khoang thoi gian nay.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Xe đã có chuyến trùng khoảng thời gian này.", 400));
         var trip = new ChuyenXe { loTrinhId = dto.loTrinhId, xeBuytId = dto.xeBuytId, gioKhoiHanhDuKien = start, gioKetThucDuKien = end, trangThai = "DuKien" };
         db.ChuyenXes.Add(trip);
         await db.SaveChangesAsync();
@@ -358,25 +358,25 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
     public async Task<IActionResult> SuaChuyen(long id, [FromBody] ChuyenDto dto)
     {
         var trip = await db.ChuyenXes.FindAsync(id);
-        if (trip == null) return NotFound(KetQuaPhanHoi.ThatBai("Khong tim thay chuyen xe", 404));
+        if (trip == null) return NotFound(KetQuaPhanHoi.ThatBai("Không tìm thấy chuyến xe", 404));
         if (trip.trangThai != "DuKien")
-            return BadRequest(KetQuaPhanHoi.ThatBai("Chi duoc sua chuyen xe o trang thai Du kien.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Chỉ được sửa chuyến xe ở trạng thái Dự kiến.", 400));
         if (dto.gioKetThucDuKien <= dto.gioKhoiHanhDuKien)
-            return BadRequest(KetQuaPhanHoi.ThatBai("Gio ket thuc phai sau gio khoi hanh.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Giờ kết thúc phải sau giờ khởi hành.", 400));
 
         var loTrinh = await db.LoTrinhs.FindAsync(dto.loTrinhId);
         if (loTrinh == null)
-            return BadRequest(KetQuaPhanHoi.ThatBai("Lo trinh khong ton tai.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Lộ trình không tồn tại.", 400));
 
         var xe = await db.XeBuyts.FindAsync(dto.xeBuytId);
         if (xe == null || !xe.trangThai)
-            return BadRequest(KetQuaPhanHoi.ThatBai("Xe buyt khong ton tai hoac khong hoat dong.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Xe buýt không tồn tại hoặc không hoạt động.", 400));
 
         var start = dto.gioKhoiHanhDuKien.ToUniversalTime();
         var end = dto.gioKetThucDuKien.ToUniversalTime();
 
         if (await db.ChuyenXes.AnyAsync(x => x.id != id && x.xeBuytId == dto.xeBuytId && x.trangThai != "Huy" && x.trangThai != "HoanThanh" && x.gioKhoiHanhDuKien < end && x.gioKetThucDuKien > start))
-            return BadRequest(KetQuaPhanHoi.ThatBai("Xe da co chuyen trung khoang thoi gian nay.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Xe đã có chuyến trùng khoảng thời gian này.", 400));
 
         trip.loTrinhId = dto.loTrinhId;
         trip.xeBuytId = dto.xeBuytId;
@@ -384,7 +384,7 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
         trip.gioKetThucDuKien = end;
         await db.SaveChangesAsync();
 
-        return Ok(KetQuaPhanHoi.ThanhCong(new { trip.id }, "Cap nhat chuyen xe thanh cong"));
+        return Ok(KetQuaPhanHoi.ThanhCong(new { trip.id }, "Cập nhật chuyến xe thành công"));
     }
 
     public record TrangThaiChuyenDto(string trangThai);
@@ -395,14 +395,128 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
         var trip = await db.ChuyenXes.FindAsync(id);
         if (trip == null) return NotFound();
         if (!(trip.trangThai == "DuKien" && (dto.trangThai == "DangChay" || dto.trangThai == "Huy")) && !(trip.trangThai == "DangChay" && dto.trangThai == "HoanThanh"))
-            return BadRequest(KetQuaPhanHoi.ThatBai("Chuyen trang thai khong hop le.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Chuyển trạng thái không hợp lệ.", 400));
         if (dto.trangThai == "DangChay" && await db.ChuyenXes.AnyAsync(x => x.id != id && x.xeBuytId == trip.xeBuytId && x.trangThai == "DangChay"))
-            return BadRequest(KetQuaPhanHoi.ThatBai("Xe dang co chuyen hoat dong.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Xe đang có chuyến hoạt động.", 400));
         if (dto.trangThai == "DangChay") trip.gioKhoiHanhThucTe = DateTime.UtcNow;
         if (dto.trangThai == "HoanThanh") trip.gioKetThucThucTe = DateTime.UtcNow;
         trip.trangThai = dto.trangThai;
         await db.SaveChangesAsync();
         return Ok(KetQuaPhanHoi.ThanhCong());
+    }
+
+    // ==========================================
+    // 3B. THIẾT BỊ SOÁT VÉ (KHAI BÁO, SỬA, BẬT/TẮT)
+    // ==========================================
+
+    [HttpGet("thiet-bi-soat-ve")]
+    public async Task<IActionResult> ThietBiSoatVe()
+    {
+        var items = await db.ThietBiSoatVes.AsNoTracking()
+            .OrderByDescending(x => x.id)
+            .Select(x => new
+            {
+                x.id,
+                x.maThietBi,
+                x.tenThietBi,
+                x.lanDongBoCuoi,
+                x.mocThuHoiDaNhan,
+                x.ngayDangKy,
+                x.trangThai
+            })
+            .ToListAsync();
+        return Ok(KetQuaPhanHoi.ThanhCong(items));
+    }
+
+    public record LuuThietBiDto(int id, string tenThietBi, bool trangThai);
+
+    [HttpPost("thiet-bi-soat-ve")]
+    public async Task<IActionResult> LuuThietBiSoatVe([FromBody] LuuThietBiDto dto)
+    {
+        var ten = dto.tenThietBi?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(ten) || ten.Length > 100)
+            return BadRequest(KetQuaPhanHoi.ThatBai("Tên thiết bị soát vé không được để trống và tối đa 100 ký tự.", 400));
+
+        if (await db.ThietBiSoatVes.AnyAsync(x => x.id != dto.id && x.tenThietBi == ten))
+            return BadRequest(KetQuaPhanHoi.ThatBai("Tên thiết bị soát vé đã tồn tại.", 400));
+
+        if (dto.id <= 0)
+        {
+            var device = new ThietBiSoatVe
+            {
+                maThietBi = Guid.NewGuid(),
+                tenThietBi = ten,
+                mocThuHoiDaNhan = 0,
+                trangThai = dto.trangThai,
+                ngayDangKy = DateTime.UtcNow
+            };
+            db.ThietBiSoatVes.Add(device);
+            await db.SaveChangesAsync();
+            return Ok(KetQuaPhanHoi.ThanhCong(new { device.id, device.maThietBi, device.tenThietBi, device.trangThai }, "Thêm thiết bị soát vé thành công"));
+        }
+
+        var existing = await db.ThietBiSoatVes.FindAsync(dto.id);
+        if (existing == null)
+            return NotFound(KetQuaPhanHoi.ThatBai("Không tìm thấy thiết bị soát vé.", 404));
+
+        if (!dto.trangThai && await db.PhienSoatVes.AnyAsync(x => x.thietBiSoatVeId == dto.id && x.ketThucLuc == null))
+            return BadRequest(KetQuaPhanHoi.ThatBai("Thiết bị đang có phiên soát vé mở, hãy kết thúc phiên trước khi tạm khóa.", 400));
+
+        existing.tenThietBi = ten;
+        existing.trangThai = dto.trangThai;
+        await db.SaveChangesAsync();
+        return Ok(KetQuaPhanHoi.ThanhCong(new { existing.id, existing.maThietBi, existing.tenThietBi, existing.trangThai }, "Cập nhật thiết bị soát vé thành công"));
+    }
+
+    // ==========================================
+    // 3C. NHÓM ĐỐI TƯỢNG ƯU TIÊN
+    // ==========================================
+
+    [HttpGet("nhom-doi-tuong")]
+    public async Task<IActionResult> NhomDoiTuong()
+    {
+        var items = await db.NhomDoiTuongs.AsNoTracking()
+            .OrderBy(x => x.id)
+            .Select(x => new { x.id, x.maNhom, x.tenNhom, x.canXacMinh, x.trangThai, soHoSo = x.HoSoUuTiens.Count })
+            .ToListAsync();
+        return Ok(KetQuaPhanHoi.ThanhCong(items));
+    }
+
+    public record LuuNhomDoiTuongDto(int id, string maNhom, string tenNhom, bool canXacMinh, bool trangThai);
+
+    [HttpPost("nhom-doi-tuong")]
+    public async Task<IActionResult> LuuNhomDoiTuong([FromBody] LuuNhomDoiTuongDto dto)
+    {
+        var ma = dto.maNhom?.Trim() ?? string.Empty;
+        var ten = dto.tenNhom?.Trim() ?? string.Empty;
+        if (ma.Length == 0 || ma.Length > 30 || !ma.All(c => char.IsAsciiLetterOrDigit(c) || c == '_'))
+            return BadRequest(KetQuaPhanHoi.ThatBai("Mã nhóm bắt buộc, tối đa 30 ký tự, chỉ gồm chữ không dấu, số hoặc dấu gạch dưới.", 400));
+        if (ten.Length == 0 || ten.Length > 100)
+            return BadRequest(KetQuaPhanHoi.ThatBai("Tên nhóm bắt buộc và tối đa 100 ký tự.", 400));
+        if (await db.NhomDoiTuongs.AnyAsync(x => x.id != dto.id && x.maNhom == ma))
+            return BadRequest(KetQuaPhanHoi.ThatBai("Mã nhóm đã tồn tại.", 400));
+
+        NhomDoiTuong nhom;
+        if (dto.id <= 0)
+        {
+            nhom = new NhomDoiTuong { maNhom = ma, tenNhom = ten, canXacMinh = dto.canXacMinh, trangThai = dto.trangThai };
+            db.NhomDoiTuongs.Add(nhom);
+        }
+        else
+        {
+            var tim = await db.NhomDoiTuongs.FindAsync(dto.id);
+            if (tim == null) return NotFound(KetQuaPhanHoi.ThatBai("Không tìm thấy nhóm đối tượng.", 404));
+            nhom = tim;
+            if (nhom.maNhom == "PhoThong" && (ma != "PhoThong" || dto.canXacMinh || !dto.trangThai))
+                return BadRequest(KetQuaPhanHoi.ThatBai("Nhóm Phổ thông là nhóm mặc định: không đổi mã, không yêu cầu xác minh và không được tạm khóa.", 400));
+            nhom.maNhom = ma;
+            nhom.tenNhom = ten;
+            nhom.canXacMinh = dto.canXacMinh;
+            nhom.trangThai = dto.trangThai;
+        }
+        await db.SaveChangesAsync();
+        if (cache != null) await cache.RemoveByPrefixAsync("smartbus:cache:bieu-gia");
+        return Ok(KetQuaPhanHoi.ThanhCong(new { nhom.id, nhom.maNhom, nhom.tenNhom, nhom.canXacMinh, nhom.trangThai }, "Lưu nhóm đối tượng thành công"));
     }
 
     // ==========================================
@@ -434,7 +548,7 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
     public async Task<IActionResult> CapNhatGiaVe([FromBody] GiaVeDto dto)
     {
         if (dto.giaGoc < 0 || dto.soTienMienGiam < 0 || dto.soTienMienGiam > dto.giaGoc)
-            return BadRequest(KetQuaPhanHoi.ThatBai("Gia ve hoac mien giam khong hop le.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Giá vé hoặc mức miễn giảm không hợp lệ.", 400));
         var fare = await db.GiaVes.FindAsync(dto.id);
         if (fare == null) return NotFound();
         fare.giaGoc = dto.giaGoc;
@@ -471,16 +585,16 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
     public async Task<IActionResult> MoKhoaVe(Guid maVe, [FromBody] MoKhoaVeDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.lyDo))
-            return BadRequest(KetQuaPhanHoi.ThatBai("Bat buoc phai nhap ly do mo khoa ve.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Bắt buộc phải nhập lý do mở khóa vé.", 400));
 
         var ve = await db.Ves.FirstOrDefaultAsync(x => x.maVe == maVe);
-        if (ve == null) return NotFound(KetQuaPhanHoi.ThatBai("Khong tim thay ve", 404));
+        if (ve == null) return NotFound(KetQuaPhanHoi.ThatBai("Không tìm thấy vé", 404));
 
         if (ve.trangThai != "TamKhoa")
-            return BadRequest(KetQuaPhanHoi.ThatBai($"Chi duoc mo khoa ve o trang thai TamKhoa. Trang thai hien tai: {ve.trangThai}", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai($"Chỉ được mở khóa vé đang tạm khóa. Trạng thái hiện tại: {ve.trangThai}", 400));
 
         if (ve.hetHanLuc <= DateTime.UtcNow)
-            return BadRequest(KetQuaPhanHoi.ThatBai("Ve da het han su dung, khong the mo khoa.", 400));
+            return BadRequest(KetQuaPhanHoi.ThatBai("Vé đã hết hạn sử dụng, không thể mở khóa.", 400));
 
         var userId = int.TryParse(User.FindFirst("id")?.Value, out var uid) ? uid : 1;
 
@@ -495,7 +609,7 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
         });
         await db.SaveChangesAsync();
 
-        return Ok(KetQuaPhanHoi.ThanhCong(new { ve.maVe, ve.trangThai }, "Mo khoa ve thanh cong"));
+        return Ok(KetQuaPhanHoi.ThanhCong(new { ve.maVe, ve.trangThai }, "Mở khóa vé thành công"));
     }
 
     // ==========================================
@@ -600,7 +714,7 @@ public class AdminController(SmartBusDbContext db, ICacheService? cache = null) 
                 break;
 
             default:
-                return BadRequest(KetQuaPhanHoi.ThatBai("Loai xuat CSV khong hop le. Cac loai ho tro: don-hang, ve, luot-di, canh-bao.", 400));
+                return BadRequest(KetQuaPhanHoi.ThatBai("Loại xuất CSV không hợp lệ. Các loại hỗ trợ: don-hang, ve, luot-di, canh-bao.", 400));
         }
 
         return File(bytes, "text/csv; charset=utf-8", filename);

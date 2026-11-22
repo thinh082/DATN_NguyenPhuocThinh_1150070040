@@ -27,6 +27,7 @@ import {
   Route,
   Search,
   ShieldCheck,
+  Smartphone,
   Ticket,
   Trash2,
   Users,
@@ -42,16 +43,18 @@ type Page =
   | 'patterns'
   | 'stops'
   | 'vehicles'
+  | 'devices'
   | 'trips'
   | 'fares'
   | 'users'
+  | 'groups'
   | 'profiles'
   | 'tickets'
   | 'orders'
   | 'scans'
   | 'alerts';
 
-type Field = { key: string; label: string; type?: string; required?: boolean; options?: [string, string][] };
+type Field = { key: string; label: string; type?: string; required?: boolean; options?: [string, string][]; labels?: [string, string] };
 type Section = {
   editOnly?: boolean;
   title: string;
@@ -75,6 +78,8 @@ const sections: Record<Exclude<Page, 'overview'>, Section> = {
       ['gioBatDau', 'Bắt đầu'],
       ['gioKetThuc', 'Kết thúc'],
       ['gianCachPhut', 'Giãn cách (phút)'],
+      ['cuLyKm', 'Cự ly (km)'],
+      ['tenChinhSach', 'Chính sách'],
       ['trangThai', 'Trạng thái'],
     ],
     save: '/api/VanHanh/luu-tuyen-xe',
@@ -84,6 +89,16 @@ const sections: Record<Exclude<Page, 'overview'>, Section> = {
       { key: 'gioBatDau', label: 'Giờ bắt đầu', type: 'time', required: true },
       { key: 'gioKetThuc', label: 'Giờ kết thúc', type: 'time', required: true },
       { key: 'gianCachPhut', label: 'Giãn cách (phút)', type: 'number' },
+      {
+        key: 'maChinhSach',
+        label: 'Chính sách giá vé',
+        type: 'select',
+        options: [
+          ['', 'Tính phí'],
+          ['NQ09_DIEU3', 'Miễn phí - NQ 09/2026 Điều 3 (có trợ giá)'],
+          ['NQ09_DIEU4', 'Miễn phí - NQ 09/2026 Điều 4 (không trợ giá)'],
+        ],
+      },
       { key: 'trangThai', label: 'Trạng thái', type: 'boolean' },
     ],
   },
@@ -139,6 +154,24 @@ const sections: Record<Exclude<Page, 'overview'>, Section> = {
     fields: [
       { key: 'bienSo', label: 'Biển số', required: true },
       { key: 'sucChua', label: 'Sức chứa', type: 'number', required: true },
+      { key: 'trangThai', label: 'Trạng thái', type: 'boolean' },
+    ],
+  },
+  devices: {
+    title: 'Thiết bị soát vé',
+    desc: 'Khai báo và quản lý máy soát vé hiển thị trên ứng dụng nhân viên.',
+    endpoint: '/api/Admin/thiet-bi-soat-ve',
+    icon: Smartphone,
+    columns: [
+      ['tenThietBi', 'Tên thiết bị'],
+      ['maThietBi', 'Mã định danh'],
+      ['ngayDangKy', 'Ngày đăng ký'],
+      ['lanDongBoCuoi', 'Đồng bộ cuối'],
+      ['trangThai', 'Trạng thái'],
+    ],
+    save: '/api/Admin/thiet-bi-soat-ve',
+    fields: [
+      { key: 'tenThietBi', label: 'Tên thiết bị', required: true },
       { key: 'trangThai', label: 'Trạng thái', type: 'boolean' },
     ],
   },
@@ -204,6 +237,26 @@ const sections: Record<Exclude<Page, 'overview'>, Section> = {
         ],
       },
       { key: 'matKhau', label: 'Mật khẩu khởi tạo', type: 'password', required: true },
+      { key: 'trangThai', label: 'Trạng thái', type: 'boolean' },
+    ],
+  },
+  groups: {
+    title: 'Nhóm đối tượng',
+    desc: 'Thêm hoặc sửa nhóm ưu tiên. Nhóm đang hoạt động và yêu cầu xác minh sẽ hiện trong danh sách chọn trên ứng dụng hành khách.',
+    endpoint: '/api/Admin/nhom-doi-tuong',
+    icon: BadgeCheck,
+    columns: [
+      ['maNhom', 'Mã nhóm'],
+      ['tenNhom', 'Tên nhóm'],
+      ['canXacMinh', 'Cần minh chứng'],
+      ['soHoSo', 'Số hồ sơ'],
+      ['trangThai', 'Trạng thái'],
+    ],
+    save: '/api/Admin/nhom-doi-tuong',
+    fields: [
+      { key: 'maNhom', label: 'Mã nhóm (không dấu)', required: true },
+      { key: 'tenNhom', label: 'Tên nhóm', required: true },
+      { key: 'canXacMinh', label: 'Cần nộp minh chứng', type: 'boolean', labels: ['Có', 'Không'] },
       { key: 'trangThai', label: 'Trạng thái', type: 'boolean' },
     ],
   },
@@ -287,6 +340,7 @@ const nav: { label: string; items: { id: Page; label: string; icon: React.Elemen
       { id: 'patterns', label: 'Lộ trình & Trạm', icon: Route },
       { id: 'stops', label: 'Trạm dừng', icon: MapPin },
       { id: 'vehicles', label: 'Phương tiện', icon: BusFront },
+      { id: 'devices', label: 'Thiết bị soát vé', icon: Smartphone },
       { id: 'trips', label: 'Chuyến xe', icon: Clock3 },
       { id: 'fares', label: 'Biểu giá', icon: CircleDollarSign },
     ],
@@ -295,6 +349,7 @@ const nav: { label: string; items: { id: Page; label: string; icon: React.Elemen
     label: 'QUẢN LÝ',
     items: [
       { id: 'users', label: 'Tài khoản', icon: Users },
+      { id: 'groups', label: 'Nhóm đối tượng', icon: BadgeCheck },
       { id: 'profiles', label: 'Hồ sơ ưu tiên', icon: FileCheck2 },
       { id: 'tickets', label: 'Vé điện tử', icon: Ticket },
       { id: 'orders', label: 'Đơn hàng', icon: CreditCard },
@@ -361,6 +416,30 @@ const human: Record<string, string> = {
   Offline: 'Ngoại tuyến',
   Di: 'Lượt đi',
   Ve: 'Lượt về',
+  HOP_LE: 'Hợp lệ',
+  DA_SU_DUNG: 'Đã sử dụng',
+  QUET_TRUNG: 'Quét trùng',
+  DONG_BO_TRUNG_VE_LUOT: 'Trùng vé lượt',
+  GOI_HET_HAN: 'Gói hết hạn',
+  KHONG_CO_DU_LIEU: 'Không có trong gói',
+  VE_KHONG_TON_TAI: 'Vé không tồn tại',
+  QR_KHONG_HOP_LE: 'QR không hợp lệ',
+  MA_QR_KHONG_DUNG_DINH_DANG: 'QR sai định dạng',
+  MA_VE_KHONG_HOP_LE: 'Mã vé không hợp lệ',
+  SAI_DU_LIEU: 'Sai dữ liệu',
+  SAI_CHU_KY: 'Sai chữ ký số',
+  CHU_KY_HONG: 'Chữ ký hỏng',
+  CHU_KY_KHONG_KHOP: 'Chữ ký không khớp',
+  SAI_TOTP: 'Mã QR hết hiệu lực',
+  MA_TOTP_HET_HAN: 'Mã QR hết hiệu lực',
+  SAI_TUYEN: 'Sai tuyến',
+  SAI_PHAM_VI: 'Thẻ miễn phí trên tuyến tính phí',
+  TheMienPhi: 'Thẻ miễn phí',
+  VE_BI_KHOA: 'Vé bị khóa',
+  VE_DA_BI_KHOA: 'Vé bị khóa',
+  VE_HET_HAN: 'Vé hết hạn',
+  THIET_BI_TU_CHOI: 'Thiết bị từ chối',
+  STALE_REVOCATION: 'Thu hồi sau khi tải gói',
 };
 
 async function downloadCsv(loai: string) {
@@ -854,8 +933,9 @@ function ViewPatternModal({ patternId, close }: { patternId: number; close: () =
 }
 
 function format(value: unknown, key = ''): string {
+  if (key === 'tenChinhSach' && !value) return 'Tính phí';
   if (value === null || value === undefined || value === '') return '—';
-  if (typeof value === 'boolean') return value ? 'Hoạt động' : 'Tạm khóa';
+  if (typeof value === 'boolean') return key === 'canXacMinh' ? (value ? 'Có' : 'Không') : value ? 'Hoạt động' : 'Tạm khóa';
   if (
     typeof value === 'number' &&
     ['giaGoc', 'soTienMienGiam', 'giaThucThu', 'tongGiaGoc', 'tongMienGiam', 'doanhThu', 'doanhThuMock', 'soTienTroGia'].includes(key)
@@ -863,7 +943,7 @@ function format(value: unknown, key = ''): string {
     return `${value.toLocaleString('vi-VN')} ₫`;
   const text = String(value);
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text.split('-').reverse().join('/');
-  if (/^(ngay|gio|thoiDiem|hetHan|hieuLuc)/i.test(key) && /^\d{4}-\d\d-\d\d/.test(text))
+  if (/^(ngay|gio|thoiDiem|hetHan|hieuLuc|lanDongBo)/i.test(key) && /^\d{4}-\d\d-\d\d/.test(text))
     return new Date(text.endsWith('Z') || /[+-]\d\d:\d\d$/.test(text) ? text : `${text}Z`).toLocaleString('vi-VN');
   return human[text] || text;
 }
@@ -1654,8 +1734,8 @@ function DataPage({ page }: { page: Exclude<Page, 'overview'> }) {
                       {f.required && ' *'}
                       {f.type === 'boolean' ? (
                         <select name={f.key} defaultValue={String(editing[f.key] ?? true)}>
-                          <option value="true">Hoạt động</option>
-                          <option value="false">Tạm khóa</option>
+                          <option value="true">{f.labels?.[0] ?? 'Hoạt động'}</option>
+                          <option value="false">{f.labels?.[1] ?? 'Tạm khóa'}</option>
                         </select>
                       ) : f.type === 'select' ? (
                         <select name={f.key} defaultValue={editing[f.key] ?? f.options?.[0][0]}>

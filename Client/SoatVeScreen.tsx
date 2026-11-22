@@ -2,7 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,20 +19,121 @@ import { StatusBar } from 'expo-status-bar';
 import * as Crypto from 'expo-crypto';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { Colors } from './constants/colors';
+import { dienGiaiLyDo } from './constants/lyDoSoatVe';
+import { useKetNoiMayChu } from './services/ketNoi';
 import { headerInset, Icon } from './components/MobileUi';
 import { apiClient } from './services/api';
 import { docGoi, dongBoNhatKy, luuGoi, moKho, quetVaLuu, layThongKeDongBo, datLaiSuKienLoi } from './services/khoSoatVe';
 import type { GoiKiemTra } from './services/soatVeOffline.mjs';
 
 type Device = { id: number; tenThietBi: string };
-type Trip = { id: number; tenTuyen: string; bienSo: string };
+type Trip = { id: number; tuyenXeId: number; maTuyen?: string; tenTuyen: string; bienSo: string };
+type DropdownOption = { id: number | null; title: string; badge?: string; detail?: string };
 
-export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: number; onLogout: () => void; isOffline?: boolean }) {
+const allRoutes = { id: null, title: 'Tất cả tuyến đang chạy' };
+const normalizeSearch = (value: string) =>
+  value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase();
+
+function SearchableDropdown({ label, placeholder, searchLabel, emptyLabel, options, value, disabled, onSelect }: {
+  label: string;
+  placeholder: string;
+  searchLabel: string;
+  emptyLabel: string;
+  options: DropdownOption[];
+  value: number | null;
+  disabled: boolean;
+  onSelect: (id: number | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const selected = options.find(option => option.id === value);
+  const keyword = normalizeSearch(query.trim());
+  const matches = options.filter(option =>
+    normalizeSearch([option.badge, option.title, option.detail].join(' ')).includes(keyword)
+  );
+
+  return (
+    <View style={styles.selector}>
+      <Text style={styles.label}>{label}</Text>
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityValue={{ text: selected ? [selected.badge, selected.title, selected.detail].filter(Boolean).join(', ') : placeholder }}
+        accessibilityState={{ disabled, expanded: open }}
+        disabled={disabled}
+        style={[styles.selectorButton, disabled && styles.disabled]}
+        onPress={() => { setQuery(''); setOpen(true); }}
+      >
+        <View style={styles.optionContent}>
+          {selected?.badge && <Text style={styles.routeBadge}>{selected.badge}</Text>}
+          <Text style={selected ? styles.optionTitle : styles.optionDetail}>{selected?.title ?? placeholder}</Text>
+          {selected?.detail && <Text style={styles.optionDetail}>{selected.detail}</Text>}
+        </View>
+        <Icon name="chevron-down" size={18} />
+      </TouchableOpacity>
+
+      <Modal visible={open} animationType="fade" transparent onRequestClose={() => setOpen(false)}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={[styles.modalContent, styles.selectorModal]} accessibilityViewIsModal>
+            <View style={styles.modalHeader}>
+              <Text accessibilityRole="header" style={styles.modalTitle}>{label}</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Đóng danh sách" style={styles.iconButton} onPress={() => setOpen(false)}>
+                <Icon name="close" />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              accessibilityLabel={searchLabel}
+              placeholder={searchLabel}
+              placeholderTextColor={Colors.textMuted}
+              value={query}
+              onChangeText={setQuery}
+              autoCorrect={false}
+              returnKeyType="search"
+              style={styles.searchInput}
+            />
+            <FlatList
+              style={styles.optionList}
+              data={matches}
+              keyExtractor={option => option.id === null ? 'all' : String(option.id)}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              ListEmptyComponent={<Text accessibilityLiveRegion="polite" style={[styles.emptyNoticeText, styles.optionEmpty]}>{keyword ? 'Không tìm thấy kết quả.' : emptyLabel}</Text>}
+              renderItem={({ item }) => {
+                const checked = item.id === value;
+                return (
+                  <TouchableOpacity
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked }}
+                    style={[styles.selectorButton, styles.optionRow, checked && styles.optionSelected]}
+                    onPress={() => { onSelect(item.id); setOpen(false); }}
+                  >
+                    <View style={styles.optionContent}>
+                      {item.badge && <Text style={styles.routeBadge}>{item.badge}</Text>}
+                      <Text style={styles.optionTitle}>{item.title}</Text>
+                      {item.detail && <Text style={styles.optionDetail}>{item.detail}</Text>}
+                    </View>
+                    <Icon name={checked ? 'radio-button-on' : 'radio-button-off'} size={18} />
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
+  );
+}
+
+export default function SoatVeScreen({ userId, onLogout, isOffline: phienNgoaiTuyen }: { userId: number; onLogout: () => void; isOffline?: boolean }) {
+  const mayChuTrucTuyen = useKetNoiMayChu();
+  const isOffline = !!phienNgoaiTuyen || mayChuTrucTuyen === false;
   const [permission, requestPermission] = useCameraPermissions();
   const [db, setDb] = useState<SQLiteDatabase | null>(null);
+  const [storageError, setStorageError] = useState<string | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [device, setDevice] = useState<number | null>(null);
+  const [route, setRoute] = useState<number | null>(null);
   const [trip, setTrip] = useState<number | null>(null);
   const [pack, setPack] = useState<GoiKiemTra | null>(null);
   const [message, setMessage] = useState('Tải dữ liệu khi có mạng trước khi quét.');
@@ -38,6 +142,7 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
   const [syncStats, setSyncStats] = useState<{ choXuLy: number; biLoi: number; daDongBo: number } | null>(null);
   const screenScroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const lock = useRef(false);
+  const dangTuDongBo = useRef(false);
   const successSound = useAudioPlayer(require('./assets/scan-ok.wav'));
   const failureSound = useAudioPlayer(require('./assets/scan-error.wav'));
 
@@ -63,13 +168,14 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
         const stats = await layThongKeDongBo(opened).catch(() => null);
         if (live) {
           setDb(opened);
+          setStorageError(null);
           setPack(saved);
           if (stats) setSyncStats(stats);
         } else {
           await opened.closeAsync();
         }
       } catch (e: any) {
-        if (live) setMessage(e.message || 'Không mở được kho ngoại tuyến.');
+        if (live) setStorageError(e.message || 'Không mở được kho ngoại tuyến.');
       }
     })();
     return () => {
@@ -87,8 +193,12 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
       setBusy(true);
       const res = await apiClient.get('/api/SoatVe/chuan-bi');
       if (res.data.statusCode !== 200) throw new Error(res.data.message);
-      setDevices(res.data.data.thietBis);
-      setTrips(res.data.data.chuyenXes);
+      const { thietBis, chuyenXes }: { thietBis: Device[]; chuyenXes: Trip[] } = res.data.data;
+      setDevices(thietBis);
+      setTrips(chuyenXes);
+      setDevice(current => thietBis.some(item => item.id === current) ? current : null);
+      setRoute(current => chuyenXes.some(item => item.tuyenXeId === current) ? current : null);
+      setTrip(current => chuyenXes.some(item => item.id === current && (route === null || item.tuyenXeId === route)) ? current : null);
       setMessage('Chọn thiết bị và chuyến đang chạy.');
     } catch (e: any) {
       setMessage(e.message || 'Không tải được dữ liệu.');
@@ -125,7 +235,7 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
     setScanning(false);
     try {
       const result = await quetVaLuu(db, data);
-      setMessage(result.hopLe ? 'Vé hợp lệ — mời hành khách lên xe.' : `Từ chối: ${result.maLyDo}`);
+      setMessage(result.hopLe ? 'Vé hợp lệ — mời hành khách lên xe.' : `Từ chối: ${dienGiaiLyDo(result.maLyDo)}`);
       const player = result.hopLe ? successSound : failureSound;
       try {
         await player.seekTo(0);
@@ -135,12 +245,37 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
       }
       const stats = await layThongKeDongBo(db).catch(() => null);
       if (stats) setSyncStats(stats);
+      void tuDongBo();
     } catch (e: any) {
       setMessage(e.message || 'Không thể lưu kết quả quét.');
     } finally {
       lock.current = false;
     }
   }
+
+  async function tuDongBo() {
+    if (!db || isOffline || dangTuDongBo.current) return;
+    dangTuDongBo.current = true;
+    try {
+      const result = await dongBoNhatKy(db);
+      const canhBao = [
+        result.rejected ? `${result.rejected} lượt máy chủ từ chối, cần đối soát.` : '',
+        result.warnings ? `${result.warnings} lượt có cảnh báo thu hồi.` : '',
+        result.pendingErrors ? `${result.pendingErrors} lượt bị lỗi chưa xác nhận.` : '',
+      ].filter(Boolean).join(' ');
+      if (canhBao) setMessage((m) => `${m} ${canhBao}`);
+    } catch {
+      /* Giữ lượt quét trong hàng đợi, sẽ gửi lại khi có mạng */
+    } finally {
+      dangTuDongBo.current = false;
+      const stats = await layThongKeDongBo(db).catch(() => null);
+      if (stats) setSyncStats(stats);
+    }
+  }
+
+  useEffect(() => {
+    if (db && !isOffline) void tuDongBo();
+  }, [db, isOffline]);
 
   async function sync() {
     if (!db) return;
@@ -274,6 +409,15 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
 
   const accepted = message.startsWith('Vé hợp lệ');
   const rejected = message.startsWith('Từ chối:');
+  const routes = new Map<number, DropdownOption>();
+  for (const item of trips) {
+    routes.set(item.tuyenXeId, {
+      id: item.tuyenXeId,
+      title: item.tenTuyen,
+      badge: item.maTuyen ? `Tuyến ${item.maTuyen}` : undefined,
+    });
+  }
+  const visibleTrips = trips.filter(item => route === null || item.tuyenXeId === route);
 
   useEffect(() => {
     if (!scanning && (accepted || rejected)) screenScroll.current?.scrollTo({ y: 0, animated: false });
@@ -335,45 +479,49 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
 
       {!pack && (
         <View style={styles.card}>
-          <TouchableOpacity style={[styles.btnSecondary, (busy || !db) && styles.disabled]} onPress={loadOptions} disabled={busy || !db}>
+          <TouchableOpacity accessibilityRole="button" style={[styles.btnSecondary, busy && styles.disabled]} onPress={loadOptions} disabled={busy}>
             <Text style={styles.btnSecondaryText}>Tải danh sách thiết bị và chuyến</Text>
           </TouchableOpacity>
 
-          {devices.length > 0 && (
-            <View style={{ marginTop: 12 }}>
-              <Text style={styles.label}>Chọn thiết bị soát vé:</Text>
-              {devices.map(d => (
-                <TouchableOpacity
-                  key={d.id}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: device === d.id }}
-                  style={[styles.itemBtn, device === d.id && styles.itemBtnActive]}
-                  onPress={() => setDevice(d.id)}
-                >
-                  <Icon name={device === d.id ? 'radio-button-on' : 'radio-button-off'} size={18} />
-                  <Text style={[styles.itemBtnText, device === d.id && styles.itemBtnTextActive]}>{d.tenThietBi}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          {trips.length > 0 && (
-            <View style={{ marginTop: 12 }}>
-              <Text style={styles.label}>Chọn chuyến xe đang chạy:</Text>
-              {trips.map(t => (
-                <TouchableOpacity
-                  key={t.id}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: trip === t.id }}
-                  style={[styles.itemBtn, trip === t.id && styles.itemBtnActive]}
-                  onPress={() => setTrip(t.id)}
-                >
-                  <Icon name={trip === t.id ? 'radio-button-on' : 'radio-button-off'} size={18} />
-                  <Text style={[styles.itemBtnText, trip === t.id && styles.itemBtnTextActive]}>{t.tenTuyen} — {t.bienSo}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+          <SearchableDropdown
+            label="Thiết bị soát vé"
+            placeholder="Chọn thiết bị"
+            searchLabel="Tìm theo tên thiết bị"
+            emptyLabel="Chưa có thiết bị trong danh sách."
+            options={devices.map(item => ({ id: item.id, title: item.tenThietBi }))}
+            value={device}
+            disabled={busy}
+            onSelect={setDevice}
+          />
+          <SearchableDropdown
+            label="Lọc theo tuyến xe"
+            placeholder={allRoutes.title}
+            searchLabel="Tìm theo mã hoặc tên tuyến"
+            emptyLabel="Chưa có tuyến đang chạy."
+            options={[allRoutes, ...routes.values()]}
+            value={route}
+            disabled={busy}
+            onSelect={id => {
+              if (id === route) return;
+              setRoute(id);
+              setTrip(null);
+            }}
+          />
+          <SearchableDropdown
+            label="Chuyến xe đang chạy"
+            placeholder="Chọn chuyến xe"
+            searchLabel="Tìm theo biển số xe"
+            emptyLabel="Chưa có chuyến đang chạy."
+            options={visibleTrips.map(item => ({
+              id: item.id,
+              title: item.tenTuyen,
+              badge: routes.get(item.tuyenXeId)?.badge,
+              detail: `Biển số xe: ${item.bienSo}`,
+            }))}
+            value={trip}
+            disabled={busy}
+            onSelect={setTrip}
+          />
 
           <TouchableOpacity
             style={[styles.btnPrimary, { marginTop: 16 }, (busy || !device || !trip || !db) && styles.disabled]}
@@ -382,6 +530,9 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
           >
             <Text style={styles.btnPrimaryText}>Bắt đầu phiên & tải gói offline</Text>
           </TouchableOpacity>
+          {storageError && (
+            <Text accessibilityLiveRegion="polite" style={styles.cardSubtitle}>{storageError}</Text>
+          )}
         </View>
       )}
 
@@ -389,7 +540,7 @@ export default function SoatVeScreen({ userId, onLogout, isOffline }: { userId: 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Phiên Soát Vé Đang Hoạt Động</Text>
           <Text style={styles.cardSubtitle}>
-            Gói kiểm tra: {pack.ves.length} vé • Hạn dùng: {new Date(pack.hetHanLuc).toLocaleTimeString('vi-VN')}
+            Gói kiểm tra: {pack.ves.length} vé • Hạn dùng: {new Date(pack.hetHanLuc).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}
           </Text>
 
           <View style={styles.actionGrid}>
@@ -641,10 +792,17 @@ const styles = StyleSheet.create({
   cardSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 4 },
   label: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
   actionGrid: { marginTop: 12, gap: 8 },
-  itemBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, marginTop: 8 },
-  itemBtnActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
-  itemBtnText: { flex: 1, fontSize: 14, color: Colors.textPrimary },
-  itemBtnTextActive: { color: Colors.primaryDark, fontWeight: '700' },
+  selector: { marginTop: 12, gap: 6 },
+  selectorButton: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.background },
+  selectorModal: { gap: 8, maxHeight: '85%' },
+  optionList: { flexGrow: 0, flexShrink: 1 },
+  optionRow: { marginTop: 8, backgroundColor: Colors.surface },
+  optionSelected: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
+  optionContent: { flex: 1, gap: 4 },
+  optionTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
+  optionDetail: { fontSize: 14, color: Colors.textSecondary },
+  optionEmpty: { paddingVertical: 16, textAlign: 'center' },
+  routeBadge: { alignSelf: 'flex-start', borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8, backgroundColor: Colors.primaryLight, color: Colors.primaryDark, fontSize: 12, fontWeight: '700' },
   btnPrimary: { ...centeredAction, backgroundColor: Colors.primary },
   btnPrimaryText: { flexShrink: 1, textAlign: 'center', color: Colors.white, fontWeight: '700', fontSize: 14 },
   scanButton: { minHeight: 54 },
